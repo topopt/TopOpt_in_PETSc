@@ -1,5 +1,5 @@
 PETSC_DIR=/opt/petsc-3.5.0/
-#PETSC_ARCH=linux-gnu
+PETSC_ARCH=linux-gnu
 CFLAGS = -I.
 FFLAGS=
 CPPFLAGS=-I.
