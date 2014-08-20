@@ -85,6 +85,8 @@ MPIIO::MPIIO(DM da_nodes, int nPf, std::string pnames,int nCf, std::string cname
 		pointsDomain0[i] = float(coordinatesPointer[i]);
 	}
 	writePoints(0, pointsDomain0);
+	// Restore coordinates array
+	VecRestoreArray(coordinates,&coordinatesPointer); 
 
 	// Run through the elements of the domain (we have already called DMDAGetElements)
 	unsigned long int *cellsDomain0 = new unsigned long int[nPEl*nCellsMyrank[0]];
@@ -171,7 +173,8 @@ PetscErrorCode MPIIO::WriteVTK(DM da_nodes, Vec U, TopOpt *opt, PetscInt itr){
 		workPointField[i+2*nPointsMyrank[0]] = float(UlocalPointer[3*i+2]);
 	}
 	writePointFields(timestep, 0, workPointField);
-
+	// Restore Ulocal array
+	ierr = VecRestoreArray(Ulocal, &UlocalPointer); CHKERRQ(ierr);
 
 	// CELL FIELD(S)
 	PetscScalar *xpp, *xp;
@@ -184,6 +187,10 @@ PetscErrorCode MPIIO::WriteVTK(DM da_nodes, Vec U, TopOpt *opt, PetscInt itr){
 		
 	}
 	writeCellFields(0, workCellField);
+	// Restore arrays
+	VecRestoreArray(opt->x,&xp);
+	VecRestoreArray(opt->xPhys,&xpp);
+	
 
 	// clean up
 	ierr = VecDestroy(&Ulocal); CHKERRQ(ierr);
