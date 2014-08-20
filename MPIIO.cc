@@ -301,7 +301,8 @@ void MPIIO::Allocate(std::string info, const int nDom, const int nPFields[],
 	if(rank == 0){ // Can this part be done as standard C++ binary output? 
 		// If there is an old file, delete this
 		ierror = MPI_File_delete(&filename[0], MPI_INFO_NULL);
-		if (ierror != _NO_SUCH_FILE && ierror) {abort("Problems deleting old file", "MPIIO:MPIIO");}
+		// The below line is commented since it caused errors with some MPI implementations
+		//if (ierror != _NO_SUCH_FILE && ierror) {abort("Problems deleting old file", "MPIIO:MPIIO");}
 		// Then open file
 		ierror = MPI_File_open(MPI_COMM_SELF, &filename[0], MPI_MODE_CREATE | MPI_MODE_WRONLY,
 				MPI_INFO_NULL, &fh);
