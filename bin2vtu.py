@@ -92,6 +92,7 @@ def main(itr):
 
 	#Write out a vtu file for each time step
 	dataset = 0
+	foundRequestedDataset = False
 	while(1):
 		try:
 			iteration = readdata(fin,'Q')
@@ -101,6 +102,7 @@ def main(itr):
 			break #break loop
 
 		if int(dataset)==int(itr):	
+			foundRequestedDataset = True
 			print("Processing dataset " + str(dataset))
 			lPFieldNames = []
 			lCFieldNames = []
@@ -146,7 +148,12 @@ def main(itr):
 		dataset += 1
 
 	fin.close()
-	print("Done")
+	if foundRequestedDataset:
+		print("Done")
+	else:
+		print("!! The requested dataset was NOT found!! ")
+		subprocess.call("rm " + FOUT + "*.vtu", shell=True);
+		
 
 
 
