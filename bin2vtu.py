@@ -91,16 +91,17 @@ def main(itr):
 
 
 	#Write out a vtu file for each time step
-	timestep = 0
+	dataset = 0
 	while(1):
 		try:
-			t = readdata(fin,'Q')
+			iteration = readdata(fin,'Q')
+			iteration = iteration[0]
+			print("Optimization iter. " + str(iteration) + " = dataset " + str(dataset) + ", you requested dataset " + str(itr))
 		except:
 			break #break loop
-		print("timestep: " + str(timestep) + "iter: " + str(itr))
 
-		if int(timestep)==int(itr):	
-			print("Processing dataset " + str(timestep))
+		if int(dataset)==int(itr):	
+			print("Processing dataset " + str(dataset))
 			lPFieldNames = []
 			lCFieldNames = []
 			lrawPFields = []
@@ -142,7 +143,7 @@ def main(itr):
 					#fin.read(4*nCellsT[i])
 					tmp1 += 4*nCellsT[i]
 			fin.seek(tmp1,1)
-		timestep += 1
+		dataset += 1
 
 	fin.close()
 	print("Done")
