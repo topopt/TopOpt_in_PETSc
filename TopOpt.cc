@@ -422,11 +422,11 @@ void TopOpt::AllocMMAwithRestart(int *itr, MMA **mma)  {
 		*mma = new MMA(n,m,*itr,xo1,xo2,U,L);
 	
 		if (restartNumber==1){
-			PetscPrintf(PETSC_COMM_WORLD,"# Succesfull restart from from file (starting from): %s \n",restdens_1.c_str());
+			PetscPrintf(PETSC_COMM_WORLD,"# Successful restart from file (starting from): %s \n",restdens_1.c_str());
 		}
 		else
         	if (restartNumber==2){
-			PetscPrintf(PETSC_COMM_WORLD,"# Succesfull restart from from file (starting from): %s \n",restdens_2.c_str());	
+			PetscPrintf(PETSC_COMM_WORLD,"# Successful restart from file (starting from): %s \n",restdens_2.c_str());	
 		}
 	
 
