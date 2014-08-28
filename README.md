@@ -5,5 +5,5 @@ TopOpt_in_PETSc
 To clone repository:
 >> git clone ssh://git@github.com/topopt/TopOpt_in_PETSc.git
 
-Debugging MPIIO error
+
 
