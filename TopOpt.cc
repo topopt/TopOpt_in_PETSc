@@ -308,71 +308,84 @@ void TopOpt::AllocMMAwithRestart(int *itr, MMA **mma)  {
 	
 	PetscBool flg;
 	PetscOptionsGetBool(NULL,"-restart",&restart,&flg);
-	// default name of the restart dir
-        std::string filename = "./";
+	
+	// Where to put restart files
+	char filenameChar[PETSC_MAX_PATH_LEN];
+    PetscOptionsGetString(NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
+    std::string filenameWorkdir = "./";
+    if (flg){
+        filenameWorkdir = "";
+        filenameWorkdir.append(filenameChar);
+    }
 
-        // Check PETSc input for a data directory
-        char filenameChar[PETSC_MAX_PATH_LEN];
-        PetscOptionsGetString(NULL,"-restartDir",filenameChar,sizeof(filenameChar),&flg);
-	// If input, change path of the file in filename
-        if (flg){
-                filename="";
-                filename.append(filenameChar);
-        }
+    std::string filename;
+    // Check PETSc input for a data directory (to see if we should load restart files from somewhere else)
+    PetscOptionsGetString(NULL,"-restartDir",filenameChar,sizeof(filenameChar),&flg);
+    // If input, change path of the file in filename
+    if (flg){
+        filename="";
+        filename.append(filenameChar);
+    }
+    else {
+        filename = filenameWorkdir;
+    }
+
 	
 	// Which solution to use for restarting
-	PetscInt restartNumber;
+	PetscInt restartNumber = 1;
 	PetscOptionsGetInt(NULL,"-restartNumber",&restartNumber,&flg);
-	if (!flg){
-		restartNumber=1;
-	}
 
 	PetscPrintf(PETSC_COMM_WORLD,"##############################################################\n");
 	PetscPrintf(PETSC_COMM_WORLD,"# Continue from previous iteration (-restart): %i \n",restart);
 	PetscPrintf(PETSC_COMM_WORLD,"# Restart files are located in folder (-restartDir): %s \n",filename.c_str());
+	PetscPrintf(PETSC_COMM_WORLD,"# New restart files are written to folder (-workdir): %s \n",filenameWorkdir.c_str());
 	
 	// Append the dummyname for restart files	
 	filename.append("/restore_V");
+	filenameWorkdir.append("/restore_V");
 	
 	PetscPrintf(PETSC_COMM_WORLD,"# The restart point is restore_V%i****.dat  (where %i is the -restartNumber) \n",restartNumber,restartNumber);
 	
 	// RESTORE FROM BREAKDOWN
 	PetscInt myrank;
 	MPI_Comm_rank(PETSC_COMM_WORLD, &myrank);
-        std::ifstream indes;
-	restdens_1=filename;
-	restdens_1.append("1");
-	restdens_2=filename;
-	restdens_2.append("2");
+    std::ifstream indes;
+	// Name of write files
+    restdens_1 = filenameWorkdir;
+    restdens_2 = filenameWorkdir;
+    restdens_1.append("1");
+    restdens_2.append("2");
 
+	// Name of read files
+	std::string restdens_1_read=filename;
+    restdens_1_read.append("1");
+    std::string restdens_2_read=filename;
+    restdens_2_read.append("2");
+
+	std::string zerosString;
 	std::stringstream ss;
 	if(myrank<10){
-                ss<<restdens_1<<"_0000"<<myrank<<".dat";
-		ss<<" ";
-		ss<<restdens_2<<"_0000"<<myrank<<".dat";
-        }
-	else
-        if(myrank<100){
-		ss<<restdens_1<<"_000"<<myrank<<".dat";
-		ss<<" ";
-		ss<<restdens_2<<"_000"<<myrank<<".dat";
-        }
-	else
-        if(myrank<1000){
-                ss<<restdens_1<<"_00"<<myrank<<".dat";
-		ss<<" ";
-		ss<<restdens_2<<"_00"<<myrank<<".dat";
-        }
-	else 
-	if(myrank<10000){
-                ss<<restdens_1<<"_0"<<myrank<<".dat";
-                ss<<" ";
-                ss<<restdens_2<<"_0"<<myrank<<".dat";
-        }
+        zerosString = "_0000";
+    }
+    else if(myrank<100){
+        zerosString = "_000";
+    }
+    else if(myrank<1000){
+        zerosString = "_00";
+    }
+    ss << restdens_1 << zerosString << myrank << ".dat";
+    ss << " "; // Space to separate filenames
+    ss << restdens_2 << zerosString << myrank << ".dat";
+    ss << " "; // Space to separate filenames
+    ss << restdens_1_read << zerosString << myrank << ".dat";
+    ss << " "; // Space to separate filenames
+    ss << restdens_2_read << zerosString << myrank << ".dat";
+    // Put file names back into strings
+    ss >> restdens_1;
+    ss >> restdens_2;
+    ss >> restdens_1_read;
+    ss >> restdens_2_read;
 
-        ss>>restdens_1;
-	ss>>restdens_2;
-	
 	// Allocate the data needed for a MMA restart
 	VecDuplicate(x,&xo1);
 	VecDuplicate(x,&xo2);
@@ -381,36 +394,35 @@ void TopOpt::AllocMMAwithRestart(int *itr, MMA **mma)  {
 	
 	// Read from restart point
 	if (restartNumber==1){
-		indes.open(restdens_1.c_str(),std::ios::in);
+		indes.open(restdens_1_read.c_str(),std::ios::in);
 	}
-	else
-	if (restartNumber==2){
-                indes.open(restdens_2.c_str(),std::ios::in);
+	else if (restartNumber==2){
+		indes.open(restdens_2_read.c_str(),std::ios::in);
 	}
 
 	if(indes && restart)
-        {
-                PetscInt nlocsiz;
+	{
+		PetscInt nlocsiz;
 		PetscScalar *xp, *xpp, *xo1p, *xo2p, *Up, *Lp;
-                	
+
 		VecGetArray(x,&xp);
 		VecGetArray(xPhys,&xpp);
-		
+
 		VecGetArray(xo1,&xo1p);
 		VecGetArray(xo2,&xo2p);
 		VecGetArray(U,&Up);
 		VecGetArray(L,&Lp);
-		
-                indes.read((char*)&nlocsiz,sizeof(PetscInt));
-                indes.read((char*)xp,sizeof(PetscScalar)*nlocsiz);
-                indes.read((char*)xpp,sizeof(PetscScalar)*nlocsiz);
-                indes.read((char*)xo1p,sizeof(PetscScalar)*nlocsiz);
-                indes.read((char*)xo2p,sizeof(PetscScalar)*nlocsiz);
-                indes.read((char*)Up,sizeof(PetscScalar)*nlocsiz);
-                indes.read((char*)Lp,sizeof(PetscScalar)*nlocsiz);
-                indes.read((char*)itr,sizeof(PetscInt));
+
+		indes.read((char*)&nlocsiz,sizeof(PetscInt));
+		indes.read((char*)xp,sizeof(PetscScalar)*nlocsiz);
+		indes.read((char*)xpp,sizeof(PetscScalar)*nlocsiz);
+		indes.read((char*)xo1p,sizeof(PetscScalar)*nlocsiz);
+		indes.read((char*)xo2p,sizeof(PetscScalar)*nlocsiz);
+		indes.read((char*)Up,sizeof(PetscScalar)*nlocsiz);
+		indes.read((char*)Lp,sizeof(PetscScalar)*nlocsiz);
+		indes.read((char*)itr,sizeof(PetscInt));
 		indes.read((char*)&fscale,sizeof(PetscScalar));
-                indes.close();
+		indes.close();
 
 		VecRestoreArray(x,&xp);
 		VecRestoreArray(xPhys,&xpp);
@@ -418,17 +430,16 @@ void TopOpt::AllocMMAwithRestart(int *itr, MMA **mma)  {
 		VecRestoreArray(xo2,&xo2p);
 		VecRestoreArray(U,&Up);
 		VecRestoreArray(L,&Lp);
-		
+
 		*mma = new MMA(n,m,*itr,xo1,xo2,U,L);
-	
+
 		if (restartNumber==1){
-			PetscPrintf(PETSC_COMM_WORLD,"# Successful restart from file (starting from): %s \n",restdens_1.c_str());
+			PetscPrintf(PETSC_COMM_WORLD,"# Successful restart from file (starting from): %s \n",restdens_1_read.c_str());
 		}
-		else
-        	if (restartNumber==2){
-			PetscPrintf(PETSC_COMM_WORLD,"# Successful restart from file (starting from): %s \n",restdens_2.c_str());	
+		else if (restartNumber==2){
+			PetscPrintf(PETSC_COMM_WORLD,"# Successful restart from file (starting from): %s \n",restdens_2_read.c_str());	
 		}
-	
+
 
 	}
 	else {
@@ -443,20 +454,20 @@ void TopOpt::WriteRestartFiles(int *itr, MMA *mma) {
 
 	// Always dump data if correct allocater has been used
 	if (xo1!=NULL){
-	  	// Get data from MMA
+		// Get data from MMA
 		mma->Restart(xo1,xo2,U,L);
 
 		// Open the stream (and make sure there always is one working copy)
 		std::string dens_iter;
 		std::stringstream ss_iter;
 		if (flip) {
-		    ss_iter << restdens_1;
-		    ss_iter >> dens_iter;
-		    flip = PETSC_FALSE;
+			ss_iter << restdens_1;
+			ss_iter >> dens_iter;
+			flip = PETSC_FALSE;
 		} else {
-		    ss_iter << restdens_2;
-		    ss_iter >> dens_iter;
-		    flip = PETSC_TRUE;
+			ss_iter << restdens_2;
+			ss_iter >> dens_iter;
+			flip = PETSC_TRUE;
 		}
 
 		// Open stream
@@ -466,26 +477,26 @@ void TopOpt::WriteRestartFiles(int *itr, MMA *mma) {
 		PetscInt nlocsiz;
 		VecGetLocalSize(x,&nlocsiz);
 		PetscScalar *xp, *xpp, *xo1p, *xo2p, *Up, *Lp;
-                	
+
 		VecGetArray(x,&xp);
 		VecGetArray(xPhys,&xpp);
 		VecGetArray(xo1,&xo1p);
 		VecGetArray(xo2,&xo2p);
 		VecGetArray(U,&Up);
 		VecGetArray(L,&Lp);
-	
+
 		// Write to file
 		out.write((char*)&nlocsiz,sizeof(PetscInt));
 		out.write((char*)xp,sizeof(PetscScalar)*nlocsiz);
-                out.write((char*)xpp,sizeof(PetscScalar)*nlocsiz);
-                out.write((char*)xo1p,sizeof(PetscScalar)*nlocsiz);
-                out.write((char*)xo2p,sizeof(PetscScalar)*nlocsiz);
-                out.write((char*)Up,sizeof(PetscScalar)*nlocsiz);
-                out.write((char*)Lp,sizeof(PetscScalar)*nlocsiz);
-                out.write((char*)itr,sizeof(PetscInt));
+		out.write((char*)xpp,sizeof(PetscScalar)*nlocsiz);
+		out.write((char*)xo1p,sizeof(PetscScalar)*nlocsiz);
+		out.write((char*)xo2p,sizeof(PetscScalar)*nlocsiz);
+		out.write((char*)Up,sizeof(PetscScalar)*nlocsiz);
+		out.write((char*)Lp,sizeof(PetscScalar)*nlocsiz);
+		out.write((char*)itr,sizeof(PetscInt));
 		out.write((char*)&fscale,sizeof(PetscScalar));
 		out.close();
-		
+
 		// Tidy up
 		VecRestoreArray(x,&xp);
 		VecRestoreArray(xPhys,&xpp);
@@ -495,5 +506,5 @@ void TopOpt::WriteRestartFiles(int *itr, MMA *mma) {
 		VecRestoreArray(L,&Lp);
 	}
 
-  
+
 }
