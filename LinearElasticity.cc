@@ -663,9 +663,9 @@ PetscInt LinearElasticity::Hex8Isoparametric(PetscScalar *X, PetscScalar *Y, Pet
 	// dy = [invJ31 invJ32 invJ33]*[dxi deta dzeta]
 	//
 	// Remark: The elasticity modulus is left out in the below
-	// computations, because we multiply with them afterwards (the aim is
+	// computations, because we multiply with it afterwards (the aim is
 	// topology optimization).
-	// Furthermore, this is not the most efficient code, but it is readible.
+	// Furthermore, this is not the most efficient code, but it is readable.
 	//
 	/////////////////////////////////////////////////////////////////////////////////
 	//////// INPUT:
