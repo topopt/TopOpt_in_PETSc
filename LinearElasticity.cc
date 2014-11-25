@@ -649,13 +649,13 @@ PetscInt LinearElasticity::Hex8Isoparametric(PetscScalar *X, PetscScalar *Y, Pet
 	// HEX8_ISOPARAMETRIC - Computes HEX8 isoparametric element matrices
 	// The element stiffness matrix is computed as:
 	//
-	//       ke = thk*int(int(B^T*C*B,x),y)
+	//       ke = int(int(int(B^T*C*B,x),y),z)
 	//
 	// For an isoparameteric element this integral becomes:
 	//
-	//       ke = thk*int(int(B^T*C*B*det(J),xi=-1..1),eta=-1..1)
+	//       ke = int(int(int(B^T*C*B*det(J),xi=-1..1),eta=-1..1),zeta=-1..1)
 	//
-	// where B is a more complicated expression:
+	// where B is the more complicated expression:
 	// B = [dx*alpha1 + dy*alpha2 + dz*alpha3]*N
 	// where
 	// dx = [invJ11 invJ12 invJ13]*[dxi deta dzeta]
