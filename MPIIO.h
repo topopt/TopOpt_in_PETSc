@@ -3,7 +3,8 @@
 
 // Include necessary libraries
 #include <petsc.h>
-#include <petsc-private/dmdaimpl.h>
+//#include <petsc-private/dmdaimpl.h>
+#include <petscdmda.h>
 #include <string>
 #include <mpi.h>
 #include <TopOpt.h>

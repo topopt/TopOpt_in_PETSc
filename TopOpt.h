@@ -2,7 +2,8 @@
 #define TOPOPT_H
 
 #include <petsc.h>
-#include <petsc-private/dmdaimpl.h>
+//#include <petsc-private/dmdaimpl.h>
+#include <petsc/private/dmdaimpl.h>
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -40,8 +41,8 @@ public:
 	~TopOpt();
 
 	// Method to allocate MMA with/without restarting
-	void AllocMMAwithRestart(int *itr, MMA **mma);
-	void WriteRestartFiles(int *itr, MMA *mma);
+	PetscErrorCode AllocateMMAwithRestart(PetscInt *itr, MMA **mma);
+	PetscErrorCode WriteRestartFiles(PetscInt *itr, MMA *mma);
 	
 	// Physical domain variables
 	PetscScalar xc[6]; // Domain coordinates 
@@ -92,6 +93,18 @@ private:
 
 	PetscErrorCode SetUpMESH();
 	PetscErrorCode SetUpOPT();
+	
+	// Restart filenames
+	std::string filename00, filename00Itr, filename01, filename01Itr;	
+	
+	// File existence
+	inline PetscBool fexists(const std::string& filename) {
+	      std::ifstream ifile(filename.c_str());
+	      if (ifile) {
+		return PETSC_TRUE;
+	      }
+	      return PETSC_FALSE;
+	}
 	
 };
 

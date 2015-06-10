@@ -2,7 +2,8 @@
 #define __FILTER__
 
 #include <petsc.h>
-#include <petsc-private/dmdaimpl.h>
+//#include <petsc-private/dmdaimpl.h>
+#include <petsc/private/dmdaimpl.h>
 #include <iostream>
 #include <math.h>
 #include <PDEFilter.h>

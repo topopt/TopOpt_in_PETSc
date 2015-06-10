@@ -1,7 +1,7 @@
 #include <PDEFilter.h>
 #include <TopOpt.h>
-#include <petsc-private/dmdaimpl.h>
-
+//#include <petsc-private/dmdaimpl.h>
+#include <petsc/private/dmdaimpl.h>
 /* -----------------------------------------------------------------------------
 Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013 
 Copyright (C) 2013-2014,

@@ -2,7 +2,8 @@
 #define __LINEARELASTICITY__
 
 #include <petsc.h>
-#include <petsc-private/dmdaimpl.h>
+//#include <petsc-private/dmdaimpl.h>
+#include <petsc/private/dmdaimpl.h>
 #include <iostream>
 #include <math.h>
 #include <TopOpt.h>
@@ -34,6 +35,9 @@ public:
     
     //  Compute objective and constraints and sensitivities at once: GOOD FOR SELF_ADJOINT PROBLEMS
     PetscErrorCode ComputeObjectiveConstraintsSensitivities(TopOpt *opt);
+    
+    // Restart writer
+    PetscErrorCode WriteRestartFiles();
     
     // Get pointer to the FE solution
     Vec GetStateField(){ return(U); };
@@ -68,7 +72,19 @@ private:
     PetscScalar Dot(PetscScalar *v1, PetscScalar *v2, PetscInt l);
     void DifferentiatedShapeFunctions(PetscScalar xi, PetscScalar eta, PetscScalar zeta, PetscScalar *dNdxi, PetscScalar *dNdeta, PetscScalar *dNdzeta);
     PetscScalar Inverse3M(PetscScalar J[][3], PetscScalar invJ[][3]);
-		
+
+    // Restart
+    PetscBool restart, flip;
+    std::string filename00,filename01;	
+    
+    // File existence
+    inline PetscBool fexists(const std::string& filename) {
+	  std::ifstream ifile(filename.c_str());
+	  if (ifile) {
+	    return PETSC_TRUE;
+	  }
+	  return PETSC_FALSE;
+    }	
 };
 
 #endif

@@ -87,6 +87,7 @@ PetscErrorCode TopOpt::SetUp(){
         Xmin = 0.0;
         Xmax = 1.0;
         movlim = 0.2;
+	restart = PETSC_TRUE;
 	
 	ierr = SetUpMESH(); CHKERRQ(ierr);
 
@@ -299,212 +300,178 @@ PetscErrorCode TopOpt::SetUpOPT(){
   
   	return(ierr);
 }
-  
-void TopOpt::AllocMMAwithRestart(int *itr, MMA **mma)  {
 
-  	// Check if restart is desired
-	restart = PETSC_FALSE; // DEFAULT DOES NOT USE RESTART
+PetscErrorCode TopOpt::AllocateMMAwithRestart(PetscInt *itr, MMA **mma)  {
+
+	PetscErrorCode ierr = 0;
+
+	// Set MMA parameters (for multiple load cases)
+	PetscScalar aMMA[m];
+	PetscScalar cMMA[m];
+	PetscScalar dMMA[m];
+	for (PetscInt i=0;i<m;i++){
+	    aMMA[i]=0.0;
+	    dMMA[i]=0.0;
+	    cMMA[i]=1000.0;
+	}
+
+	// Check if restart is desired
+	restart = PETSC_TRUE; // DEFAULT USES RESTART
 	flip = PETSC_TRUE;     // BOOL to ensure that two dump streams are kept
-	
+	PetscBool onlyLoadDesign = PETSC_FALSE; // Default restarts everything
+
+	// Get inputs
 	PetscBool flg;
-	PetscOptionsGetBool(NULL,"-restart",&restart,&flg);
-	
-	// Where to put restart files
 	char filenameChar[PETSC_MAX_PATH_LEN];
-    PetscOptionsGetString(NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
-    std::string filenameWorkdir = "./";
-    if (flg){
-        filenameWorkdir = "";
-        filenameWorkdir.append(filenameChar);
-    }
+	PetscOptionsGetBool(NULL,"-restart",&restart,&flg);
+	PetscOptionsGetBool(NULL,"-onlyLoadDesign",&onlyLoadDesign,&flg);
 
-    std::string filename;
-    // Check PETSc input for a data directory (to see if we should load restart files from somewhere else)
-    PetscOptionsGetString(NULL,"-restartDir",filenameChar,sizeof(filenameChar),&flg);
-    // If input, change path of the file in filename
-    if (flg){
-        filename="";
-        filename.append(filenameChar);
-    }
-    else {
-        filename = filenameWorkdir;
-    }
-
+	if (restart) {
+	  ierr = VecDuplicate(x,&xo1); CHKERRQ(ierr);
+	  ierr = VecDuplicate(x,&xo2); CHKERRQ(ierr);
+	  ierr = VecDuplicate(x,&U); CHKERRQ(ierr);
+	  ierr = VecDuplicate(x,&L); CHKERRQ(ierr);
+	}
 	
-	// Which solution to use for restarting
-	PetscInt restartNumber = 1;
-	PetscOptionsGetInt(NULL,"-restartNumber",&restartNumber,&flg);
+	// Determine the right place to write the new restart files
+	std::string filenameWorkdir = "./";
+	PetscOptionsGetString(NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
+	if (flg){
+		filenameWorkdir = "";
+		filenameWorkdir.append(filenameChar);
+	}
+	filename00 = filenameWorkdir;
+	filename00Itr = filenameWorkdir;
+	filename01 = filenameWorkdir;
+	filename01Itr = filenameWorkdir;
 
+	filename00.append("/Restart00.dat");
+	filename00Itr.append("/Restart00_itr_f0.dat");
+	filename01.append("/Restart01.dat");
+	filename01Itr.append("/Restart01_itr_f0.dat");
+
+	// Where to read the restart point from
+	std::string restartFileVec = ""; // NO RESTART FILE !!!!!
+	std::string restartFileItr = ""; // NO RESTART FILE !!!!!
+
+	PetscOptionsGetString(NULL,"-restartFileVec",filenameChar,sizeof(filenameChar),&flg);
+	if (flg) {
+	   restartFileVec.append(filenameChar);
+	}
+	PetscOptionsGetString(NULL,"-restartFileItr",filenameChar,sizeof(filenameChar),&flg);
+	if (flg) {
+		restartFileItr.append(filenameChar);
+	}
+
+	// Which solution to use for restarting
 	PetscPrintf(PETSC_COMM_WORLD,"##############################################################\n");
 	PetscPrintf(PETSC_COMM_WORLD,"# Continue from previous iteration (-restart): %i \n",restart);
-	PetscPrintf(PETSC_COMM_WORLD,"# Restart files are located in folder (-restartDir): %s \n",filename.c_str());
-	PetscPrintf(PETSC_COMM_WORLD,"# New restart files are written to folder (-workdir): %s \n",filenameWorkdir.c_str());
-	
-	// Append the dummyname for restart files	
-	filename.append("/restore_V");
-	filenameWorkdir.append("/restore_V");
-	
-	PetscPrintf(PETSC_COMM_WORLD,"# The restart point is restore_V%i****.dat  (where %i is the -restartNumber) \n",restartNumber,restartNumber);
-	
-	// RESTORE FROM BREAKDOWN
-	PetscInt myrank;
-	MPI_Comm_rank(PETSC_COMM_WORLD, &myrank);
-    std::ifstream indes;
-	// Name of write files
-    restdens_1 = filenameWorkdir;
-    restdens_2 = filenameWorkdir;
-    restdens_1.append("1");
-    restdens_2.append("2");
+	PetscPrintf(PETSC_COMM_WORLD,"# Restart file (-restartFileVec): %s \n",restartFileVec.c_str());
+	PetscPrintf(PETSC_COMM_WORLD,"# Restart file (-restartFileItr): %s \n",restartFileItr.c_str());
+	PetscPrintf(PETSC_COMM_WORLD,"# New restart files are written to (-workdir): %s (Restart0x.dat and Restart0x_itr_f0.dat) \n",filenameWorkdir.c_str());
 
-	// Name of read files
-	std::string restdens_1_read=filename;
-    restdens_1_read.append("1");
-    std::string restdens_2_read=filename;
-    restdens_2_read.append("2");
-
-	std::string zerosString;
-	std::stringstream ss;
-	if(myrank<10){
-        zerosString = "_0000";
-    }
-    else if(myrank<100){
-        zerosString = "_000";
-    }
-    else if(myrank<1000){
-        zerosString = "_00";
-    }
-    ss << restdens_1 << zerosString << myrank << ".dat";
-    ss << " "; // Space to separate filenames
-    ss << restdens_2 << zerosString << myrank << ".dat";
-    ss << " "; // Space to separate filenames
-    ss << restdens_1_read << zerosString << myrank << ".dat";
-    ss << " "; // Space to separate filenames
-    ss << restdens_2_read << zerosString << myrank << ".dat";
-    // Put file names back into strings
-    ss >> restdens_1;
-    ss >> restdens_2;
-    ss >> restdens_1_read;
-    ss >> restdens_2_read;
-
-	// Allocate the data needed for a MMA restart
-	VecDuplicate(x,&xo1);
-	VecDuplicate(x,&xo2);
-	VecDuplicate(x,&U);
-	VecDuplicate(x,&L);
+	// Check if files exist:
+	PetscBool vecFile = fexists(restartFileVec);
+	if (!vecFile) { PetscPrintf(PETSC_COMM_WORLD,"File: %s NOT FOUND \n",restartFileVec.c_str()); }
+	PetscBool itrFile = fexists(restartFileItr);
+	if (!itrFile) { PetscPrintf(PETSC_COMM_WORLD,"File: %s NOT FOUND \n",restartFileItr.c_str()); }
 	
 	// Read from restart point
-	if (restartNumber==1){
-		indes.open(restdens_1_read.c_str(),std::ios::in);
-	}
-	else if (restartNumber==2){
-		indes.open(restdens_2_read.c_str(),std::ios::in);
-	}
-
-	if(indes && restart)
-	{
-		PetscInt nlocsiz;
-		PetscScalar *xp, *xpp, *xo1p, *xo2p, *Up, *Lp;
-
-		VecGetArray(x,&xp);
-		VecGetArray(xPhys,&xpp);
-
-		VecGetArray(xo1,&xo1p);
-		VecGetArray(xo2,&xo2p);
-		VecGetArray(U,&Up);
-		VecGetArray(L,&Lp);
-
-		indes.read((char*)&nlocsiz,sizeof(PetscInt));
-		indes.read((char*)xp,sizeof(PetscScalar)*nlocsiz);
-		indes.read((char*)xpp,sizeof(PetscScalar)*nlocsiz);
-		indes.read((char*)xo1p,sizeof(PetscScalar)*nlocsiz);
-		indes.read((char*)xo2p,sizeof(PetscScalar)*nlocsiz);
-		indes.read((char*)Up,sizeof(PetscScalar)*nlocsiz);
-		indes.read((char*)Lp,sizeof(PetscScalar)*nlocsiz);
-		indes.read((char*)itr,sizeof(PetscInt));
-		indes.read((char*)&fscale,sizeof(PetscScalar));
-		indes.close();
-
-		VecRestoreArray(x,&xp);
-		VecRestoreArray(xPhys,&xpp);
-		VecRestoreArray(xo1,&xo1p);
-		VecRestoreArray(xo2,&xo2p);
-		VecRestoreArray(U,&Up);
-		VecRestoreArray(L,&Lp);
-
-		*mma = new MMA(n,m,*itr,xo1,xo2,U,L);
-
-		if (restartNumber==1){
-			PetscPrintf(PETSC_COMM_WORLD,"# Successful restart from file (starting from): %s \n",restdens_1_read.c_str());
+	
+	PetscInt nGlobalDesignVar;
+	VecGetSize(x,&nGlobalDesignVar); // ASSUMES THAT SIZE IS ALWAYS MATCHED TO CURRENT MESH
+	if (restart && vecFile && itrFile){
+		
+		PetscViewer view;
+		// Open the data files 
+		ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,restartFileVec.c_str(),FILE_MODE_READ,&view);	
+				
+		VecLoad(x,view);
+		VecLoad(xPhys,view);
+		VecLoad(xo1,view);
+		VecLoad(xo2,view);
+		VecLoad(U,view);
+		VecLoad(L,view);
+		PetscViewerDestroy(&view);
+		
+		// Read iteration and fscale
+		std::fstream itrfile(restartFileItr.c_str(), std::ios_base::in);
+		itrfile >> itr[0];
+		itrfile >> fscale;
+		
+		
+		// Choose if restart is full or just an initial design guess
+		if (onlyLoadDesign){
+			PetscPrintf(PETSC_COMM_WORLD,"# Loading design from file: %s \n",restartFileVec.c_str());
+			*mma = new MMA(nGlobalDesignVar,m,x, aMMA, cMMA, dMMA);
 		}
-		else if (restartNumber==2){
-			PetscPrintf(PETSC_COMM_WORLD,"# Successful restart from file (starting from): %s \n",restdens_2_read.c_str());	
+		else {
+			PetscPrintf(PETSC_COMM_WORLD,"# Continue optimization from file: %s \n",restartFileVec.c_str());
+			*mma = new MMA(nGlobalDesignVar,m,*itr,xo1,xo2,U,L,aMMA,cMMA,dMMA);
 		}
 
-
+		PetscPrintf(PETSC_COMM_WORLD,"# Successful restart from file: %s and %s \n",restartFileVec.c_str(),restartFileItr.c_str());
 	}
 	else {
-		*mma = new MMA(n,m,x);
+		*mma = new MMA(nGlobalDesignVar,m,x,aMMA,cMMA,dMMA);
 	}  
-  
-	indes.close();
-  
-}  
 
-void TopOpt::WriteRestartFiles(int *itr, MMA *mma) {
+	return ierr;
+} 
 
-	// Always dump data if correct allocater has been used
-	if (xo1!=NULL){
-		// Get data from MMA
-		mma->Restart(xo1,xo2,U,L);
 
-		// Open the stream (and make sure there always is one working copy)
-		std::string dens_iter;
-		std::stringstream ss_iter;
-		if (flip) {
-			ss_iter << restdens_1;
-			ss_iter >> dens_iter;
-			flip = PETSC_FALSE;
-		} else {
-			ss_iter << restdens_2;
-			ss_iter >> dens_iter;
-			flip = PETSC_TRUE;
-		}
+PetscErrorCode TopOpt::WriteRestartFiles(PetscInt *itr, MMA *mma) {
 
-		// Open stream
-		std::ofstream out(dens_iter.c_str(),std::ios::out);
-
-		// poniters to data
-		PetscInt nlocsiz;
-		VecGetLocalSize(x,&nlocsiz);
-		PetscScalar *xp, *xpp, *xo1p, *xo2p, *Up, *Lp;
-
-		VecGetArray(x,&xp);
-		VecGetArray(xPhys,&xpp);
-		VecGetArray(xo1,&xo1p);
-		VecGetArray(xo2,&xo2p);
-		VecGetArray(U,&Up);
-		VecGetArray(L,&Lp);
-
-		// Write to file
-		out.write((char*)&nlocsiz,sizeof(PetscInt));
-		out.write((char*)xp,sizeof(PetscScalar)*nlocsiz);
-		out.write((char*)xpp,sizeof(PetscScalar)*nlocsiz);
-		out.write((char*)xo1p,sizeof(PetscScalar)*nlocsiz);
-		out.write((char*)xo2p,sizeof(PetscScalar)*nlocsiz);
-		out.write((char*)Up,sizeof(PetscScalar)*nlocsiz);
-		out.write((char*)Lp,sizeof(PetscScalar)*nlocsiz);
-		out.write((char*)itr,sizeof(PetscInt));
-		out.write((char*)&fscale,sizeof(PetscScalar));
-		out.close();
-
-		// Tidy up
-		VecRestoreArray(x,&xp);
-		VecRestoreArray(xPhys,&xpp);
-		VecRestoreArray(xo1,&xo1p);
-		VecRestoreArray(xo2,&xo2p);
-		VecRestoreArray(U,&Up);
-		VecRestoreArray(L,&Lp);
+	PetscErrorCode ierr=0;
+	// Only dump data if correct allocater has been used
+	if (!restart){
+		return -1;
 	}
 
+	// Get restart vectors
+	mma->Restart(xo1,xo2,U,L);
+	
+	// Choose previous set of restart files
+	if (flip){ flip = PETSC_FALSE; 	}	
+	else {     flip = PETSC_TRUE; 	}
 
+	// Write file with iteration number of f0 scaling
+	// and a file with the MMA-required vectors, in the following order:
+	// : x,xPhys,xold1,xold2,U,L
+	PetscViewer view; // vectors
+	PetscViewer restartItrF0; // scalars
+	
+	PetscViewerCreate(PETSC_COMM_WORLD, &restartItrF0);
+	PetscViewerSetType(restartItrF0, PETSCVIEWERASCII);
+	PetscViewerFileSetMode(restartItrF0, FILE_MODE_WRITE);
+	
+	// Open viewers for writing
+	if (!flip){
+		PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename00.c_str(),FILE_MODE_WRITE,&view);
+		PetscViewerFileSetName(restartItrF0, filename00Itr.c_str());
+	}
+	else if (flip){
+		PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename01.c_str(),FILE_MODE_WRITE,&view);
+		PetscViewerFileSetName(restartItrF0, filename01Itr.c_str());
+	}
+
+	// Write iteration and fscale
+	PetscViewerASCIIPrintf(restartItrF0, "%d ", itr[0]);
+	PetscViewerASCIIPrintf(restartItrF0," %e",fscale);
+	PetscViewerASCIIPrintf(restartItrF0,"\n");
+
+	// Write vectors
+	VecView(x,view); // the design variables
+	VecView(xPhys,view);
+	VecView(xo1,view);
+	VecView(xo2,view);
+	VecView(U,view);	
+	VecView(L,view);
+	
+	// Clean up
+	PetscViewerDestroy(&view);
+	PetscViewerDestroy(&restartItrF0);
+
+	//PetscPrintf(PETSC_COMM_WORLD,"DONE WRITING DATA\n");
+	return ierr;
 }

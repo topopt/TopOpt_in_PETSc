@@ -39,7 +39,7 @@ int main(int argc, char *argv[]){
 // STEP 5: THE OPTIMIZER MMA
   MMA *mma;
   PetscInt itr=0;
-  opt->AllocMMAwithRestart(&itr, &mma); // allow for restart !
+  opt->AllocateMMAwithRestart(&itr, &mma); // allow for restart !
 
 // STEP 6: FILTER THE INITIAL DESIGN/RESTARTED DESIGN
   ierr = filter->FilterProject(opt); CHKERRQ(ierr);
@@ -95,8 +95,13 @@ int main(int argc, char *argv[]){
 	// Dump data needed for restarting code at termination
 	if (itr%3==0)	{
 		opt->WriteRestartFiles(&itr, mma);
+		physics->WriteRestartFiles();
 	}
   }
+// Write restart WriteRestartFiles
+  opt->WriteRestartFiles(&itr, mma);  
+  physics->WriteRestartFiles();
+  
 // Dump final design
   output->WriteVTK(opt->da_nodes,physics->GetStateField(),opt, itr+1);
   

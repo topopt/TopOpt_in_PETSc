@@ -362,6 +362,40 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt
 
 }
 
+
+PetscErrorCode LinearElasticity::WriteRestartFiles(){
+  
+	PetscErrorCode ierr = 0;
+	
+	// Only dump data if correct allocater has been used
+	if (!restart){
+		return -1;
+	}
+
+	// Choose previous set of restart files
+	if (flip){ flip = PETSC_FALSE; 	}	
+	else {     flip = PETSC_TRUE; 	}
+
+	// Open viewers for writing
+	PetscViewer view; // vectors
+	if (!flip){
+		PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename00.c_str(),FILE_MODE_WRITE,&view);
+	}
+	else if (flip){
+		PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename01.c_str(),FILE_MODE_WRITE,&view);
+	}
+	
+	// Write vectors
+	VecView(U,view);	
+	
+	// Clean up
+	PetscViewerDestroy(&view);
+	
+	return ierr;
+  
+}
+
+
 //##################################################################
 //##################################################################
 //##################################################################
@@ -436,6 +470,60 @@ PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(TopOpt *opt){
 PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 
 	PetscErrorCode ierr;
+	
+	// CHECK FOR RESTART POINT
+	restart = PETSC_TRUE;
+	flip = PETSC_TRUE;  
+	PetscBool flg, onlyDesign;
+	onlyDesign = PETSC_FALSE;
+	char filenameChar[PETSC_MAX_PATH_LEN];
+	PetscOptionsGetBool(NULL,"-restart",&restart,&flg);
+	PetscOptionsGetBool(NULL,"-onlyLoadDesign",&onlyDesign,&flg); // DONT READ DESIGN IF THIS IS TRUE
+	
+	// READ THE RESTART FILE INTO THE SOLUTION VECTOR(S)
+	if (restart){
+	    // THE FILES FOR WRITING RESTARTS
+	    std::string filenameWorkdir = "./";
+	    PetscOptionsGetString(NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
+	    if (flg){
+		    filenameWorkdir = "";
+		    filenameWorkdir.append(filenameChar);
+	    }
+	    filename00 = filenameWorkdir;
+	    filename01 = filenameWorkdir;
+	    filename00.append("/RestartSol00.dat");
+	    filename01.append("/RestartSol01.dat");
+	    
+	    // CHECK FOR SOLUTION AND READ TO STATE VECTOR(s)
+	    if (!onlyDesign){
+		  // Where to read the restart point from
+		  std::string restartFileVec = ""; // NO RESTART FILE !!!!!
+		  // GET FILENAME
+		  PetscOptionsGetString(NULL,"-restartFileVecSol",filenameChar,sizeof(filenameChar),&flg);
+		  if (flg) {
+		    restartFileVec.append(filenameChar);
+		  }
+		
+		  // PRINT TO SCREEN
+		  PetscPrintf(PETSC_COMM_WORLD,"# Restarting with solution (State Vector) from (-restartFileVecSol): %s \n",restartFileVec.c_str());
+		  
+		  // Check if files exist:
+		  PetscBool vecFile = fexists(restartFileVec);
+		  if (!vecFile) { PetscPrintf(PETSC_COMM_WORLD,"File: %s NOT FOUND \n",restartFileVec.c_str()); }
+		  
+		  // READ
+		  if (vecFile){
+		      PetscViewer view;
+		      // Open the data files 
+		      ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,restartFileVec.c_str(),FILE_MODE_READ,&view);
+		      
+		      VecLoad(U,view);
+		      
+		      PetscViewerDestroy(&view);
+		  }
+	    }
+	}
+		
 	PC pc;
 
 	// The fine grid Krylov method
