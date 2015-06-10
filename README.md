@@ -9,6 +9,8 @@ details see www.topopt.dtu.dk/PETSc.
 To clone repository:
 >> git clone https://github.com/topopt/TopOpt_in_PETSc.git
 
+NOTE: The code requires PETSc version 3.6.0 or newer !
+
 
 
 
