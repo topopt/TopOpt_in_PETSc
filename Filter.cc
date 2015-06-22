@@ -222,9 +222,10 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 			for (PetscInt i=info.xs; i<info.xs+info.xm; i++) {
 				PetscInt col = (i-info.gxs) + (j-info.gys)*(info.gxm) + (k-info.gzs  )*(info.gxm)*(info.gym);
 				// Loop over nodes (including ghosts) within a cubic domain with center at (i,j,k)
-				for (PetscInt k2=std::max(k-info.sw,0);k2<=std::min(k+info.sw,info.mz);k2++){
-					for (PetscInt j2=std::max(j-info.sw,0);j2<=std::min(j+info.sw,info.my);j2++){
-						for (PetscInt i2=std::max(i-info.sw,0);i2<=std::min(i+info.sw,info.mx);i2++){
+
+				for (PetscInt k2=std::max(k-info.sw,0);k2<std::min(k+info.sw,info.mz);k2++){
+					for (PetscInt j2=std::max(j-info.sw,0);j2<std::min(j+info.sw,info.my);j2++){
+						for (PetscInt i2=std::max(i-info.sw,0);i2<std::min(i+info.sw,info.mx);i2++){
 							PetscInt row = (i2-info.gxs) + (j2-info.gys)*(info.gxm) + (k2-info.gzs  )*(info.gxm)*(info.gym);
 							PetscScalar dist = 0.0;
 							for(PetscInt kk=0; kk<3; kk++){
