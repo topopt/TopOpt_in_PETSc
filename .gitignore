@@ -1,0 +1,6 @@
+*.dat
+*.info
+*.pyc
+*.vtu
+topopt
+makefile
