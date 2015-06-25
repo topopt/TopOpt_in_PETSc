@@ -3,7 +3,7 @@
 # ux*iHat+uy*jHat+uz*kHat
 
 import sys
-import struct as st # 
+import struct as st #
 #cvw = custom vtu writer
 import makevtu as cvw
 # Import subprocess library, so system calls can be made
@@ -17,9 +17,9 @@ FIN = "output.dat"	#Std. input file format
 FOUT = "output"	#Std. output file format
 
 def main(itr):
-	print("iter: " + str(itr)) 
+	print("iter: " + str(itr))
 	# Delete all vtu files of same name
-	subprocess.call("rm " + FOUT + "*.vtu", shell=True);
+	subprocess.call("rm " + FOUT + "_" + str(itr).zfill(5) + ".vtu", shell=True);
 	# Try to open the file
 	try:
 		fin = open(FIN,'rb')
@@ -27,7 +27,7 @@ def main(itr):
 		exit("Could not open file.. exiting")
 
 	# The file always starts with a user defined string
-	# Here it is discarded, but if you have some information in it, 
+	# Here it is discarded, but if you have some information in it,
 	# it can be saved.
 	readInString(fin)
 
@@ -36,11 +36,11 @@ def main(itr):
 	nDom,nPointsT,nCellsT,nPFields,nCFields,nodesPerElement=readHeader(fin)
 
 	# The cell and point field names:
-	pointFieldNames = readInString(fin) 
+	pointFieldNames = readInString(fin)
 	cellFieldNames  = readInString(fin)
 	# Convert to tuples with, assume names are comma separated. Also strip for whitespaces/trailing characters
 	pointFieldNames = [x.strip() for x in pointFieldNames.split(',')]
-	cellFieldNames = [x.strip() for x in cellFieldNames.split(',')] 
+	cellFieldNames = [x.strip() for x in cellFieldNames.split(',')]
 
 	print("Read/write in mesh data: nodes")
 	# Open output stream
@@ -49,7 +49,7 @@ def main(itr):
 	except:
 		exit("Cannot create output file... exiting")
 
-	# Node list - simple take and put 
+	# Node list - simple take and put
 	rawP = ""
 	for i in range(nDom):
 		#Multiply by 3 because we have 3D
@@ -60,8 +60,8 @@ def main(itr):
 	rawP = None # delete rawP from memory
 
 	print("Read/write in mesh data: element connectivity")
-	
-	#Cell data needs to be processed and cannot be read in raw 
+
+	#Cell data needs to be processed and cannot be read in raw
 	rawP = ""
 	for i in range(nDom):
 		#Multiply by 8 because we have 8 nodes per element
@@ -69,7 +69,7 @@ def main(itr):
 		rawP += fin.read(8*8*nCellsT[i])
 	cvw.writeRawCellsConn(fout,rawP)
 	#print st.unpack('Q'*128*8,rawP[0:8*128*8])
-	
+
 	rawP = ""
 	for i in range(nDom):
                 #Multiply by 8 == length of unsigned long int
@@ -78,14 +78,14 @@ def main(itr):
 
 	# Convert from binary to e.g. floats and return in a tuple:
 	#print st.unpack('Q'*128,rawP[0:8*128])
-	
+
 	rawP = ""
         for i in range(nDom):
                 #Multiply by 8 == length of unsigned long int
                 rawP += fin.read(8*nCellsT[i])
 
         cvw.writeRawCellsType(fout,rawP)
-	#print st.unpack('Q'*128,rawP[0:8*128])	
+	#print st.unpack('Q'*128,rawP[0:8*128])
 	rawP=None
 	print("Done writing in mesh")
 
@@ -101,7 +101,7 @@ def main(itr):
 		except:
 			break #break loop
 
-		if int(dataset)==int(itr):	
+		if int(dataset)==int(itr):
 			foundRequestedDataset = True
 			print("Processing dataset " + str(dataset))
 			lPFieldNames = []
@@ -153,7 +153,7 @@ def main(itr):
 	else:
 		print("!! The requested dataset was NOT found!! ")
 		subprocess.call("rm " + FOUT + "*.vtu", shell=True);
-		
+
 
 
 
@@ -176,9 +176,9 @@ def convertToVtkCell(i):
 
 def readdata(fin,inpformat):
 	# fin = file input
-	# inpformat = type of character/string/number to read - see python manual. 
+	# inpformat = type of character/string/number to read - see python manual.
 	#  sequence of datatypes
-	
+
 	# How many bytes should we read when format is inpformat:
 	bytecount = st.calcsize(inpformat)
 	# Read the bytes into tmp
@@ -195,7 +195,7 @@ def readHeader(fin):
 		tmp = readdata(fin,'Q'*nDom*4)
 		nPointsT = list(tmp[0:nDom])
 		nCellsT  = list(tmp[nDom:2*nDom])
-		nPFields = list(tmp[2*nDom:3*nDom]) 
+		nPFields = list(tmp[2*nDom:3*nDom])
 		nCFields = list(tmp[3*nDom:4*nDom])
 
 		nodesPerElement = readdata(fin,'Q')[0]
