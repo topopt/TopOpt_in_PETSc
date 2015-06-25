@@ -3,18 +3,18 @@
 //#include <petsc-private/dmdaimpl.h>
 #include <petsc/private/dmdaimpl.h>
 /* -----------------------------------------------------------------------------
-Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013 
+Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013
 Copyright (C) 2013-2014,
 
 This PDEFilter implementation is licensed under Version 2.1 of the GNU
-Lesser General Public License.  
+Lesser General Public License.
 
 This MMA implementation is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
 License as published by the Free Software Foundation; either
 version 2.1 of the License, or (at your option) any later version.
 
-This Module is distributed in the hope that it will be useful,implementation 
+This Module is distributed in the hope that it will be useful,implementation
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 Lesser General Public License for more details.
@@ -29,7 +29,7 @@ PDEFilt::PDEFilt(TopOpt *opt)
 {
 
 	R=opt->rmin/2.0/sqrt(3); // conversion factor for the PDEfilter
-	
+
 	nlvls=3; // MG levels
 
 	// number of nodal dofs
@@ -43,46 +43,46 @@ PDEFilt::PDEFilt(TopOpt *opt)
 	DMDAStencilType stype;
 	{
       // Extract information from the nodal mesh
-		PetscInt M,N,P,md,nd,pd; 
-		DMDAGetInfo(opt->da_nodes,NULL,&M,&N,&P,&md,&nd,&pd,NULL,NULL,&bx,&by,&bz,&stype); 
-		
+		PetscInt M,N,P,md,nd,pd;
+		DMDAGetInfo(opt->da_nodes,NULL,&M,&N,&P,&md,&nd,&pd,NULL,NULL,&bx,&by,&bz,&stype);
+
 	// Find the element size
 		Vec lcoor;
 		DMGetCoordinatesLocal(opt->da_nodes,&lcoor);
 		PetscScalar *lcoorp;
 		VecGetArray(lcoor,&lcoorp);
-		
+
 		PetscInt nel, nen;
 		const PetscInt *necon;
 		DMDAGetElements_3D(opt->da_nodes,&nel,&nen,&necon);
-		
+
 		// Use the first element to compute the dx, dy, dz
 		dx = lcoorp[3*necon[0*nen + 1]+0]-lcoorp[3*necon[0*nen + 0]+0];
 		dy = lcoorp[3*necon[0*nen + 2]+1]-lcoorp[3*necon[0*nen + 1]+1];
  		dz = lcoorp[3*necon[0*nen + 4]+2]-lcoorp[3*necon[0*nen + 0]+2];
 		VecRestoreArray(lcoor,&lcoorp);
-	
+
 		// ELement volume
 		elemVol = dx*dy*dz;
-	
+
 		nn[0]=M;
 		nn[1]=N;
 		nn[2]=P;
-		
-		ne[0]=nn[0]-1; 
-		ne[1]=nn[1]-1; 
-		ne[2]=nn[2]-1; 
-		
-		
+
+		ne[0]=nn[0]-1;
+		ne[1]=nn[1]-1;
+		ne[2]=nn[2]-1;
+
+
 		xc[0]=0.0;
 		xc[1]=ne[0]*M;
 		xc[2]=0.0;
 		xc[3]=ne[1]*N;
 		xc[4]=0.0;
 		xc[5]=ne[2]*P;
-		
+
 	}
-	
+
 	// Create the nodal mesh
 	DMDACreate3d(PETSC_COMM_WORLD,bx,by,bz,stype,nn[0],nn[1],nn[2],PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,
                         numnodaldof,stencilwidth,0,0,0,&(da_nodal));
@@ -93,7 +93,7 @@ PDEFilt::PDEFilt(TopOpt *opt)
 	DMDASetElementType(da_nodal, DMDA_ELEMENT_Q1);
 
 	//Create the element mesh
-	
+
 	// find the geometric partitioning of the nodal mesh, so the element mesh will coincide
 	PetscInt md,nd,pd;
 	DMDAGetInfo(da_nodal,NULL,NULL,NULL,NULL,&md,&nd,&pd,NULL,NULL,NULL,NULL,NULL,NULL);
@@ -117,7 +117,7 @@ PDEFilt::PDEFilt(TopOpt *opt)
                 if (i==0){Lz[i] = Lz[i]-1;}
         }
 
-	PetscInt overlap=0; 
+	PetscInt overlap=0;
 	// Create the element grid:
         DMDACreate3d(PETSC_COMM_WORLD,bx,by,bz,stype,nn[0]-1,nn[1]-1,nn[2]-1,md,nd,pd,
                         1,overlap,Lx,Ly,Lz,&(da_element));
@@ -135,7 +135,7 @@ PDEFilt::PDEFilt(TopOpt *opt)
 	DMCreateGlobalVector(da_nodal,&(RHS));
 	DMCreateGlobalVector(da_element,&(X));
 	VecDuplicate(RHS, &U);
-	
+
 
 	//Create T matrix
 	{
@@ -143,18 +143,18 @@ PDEFilt::PDEFilt(TopOpt *opt)
 		PetscInt n;
 		//PetscInt M;
 		//PetscInt N;
-		
+
 		//m,M  extract it from RHS
 		//n,N  extract it from X
            	VecGetLocalSize(RHS,&m);
 		VecGetLocalSize(X,&n);
 
 		MatCreateAIJ(PETSC_COMM_WORLD , m, n, PETSC_DETERMINE, PETSC_DETERMINE, 8, NULL,7,NULL, &T);
-		
-		ISLocalToGlobalMapping rmapping;
-		ISLocalToGlobalMapping cmapping;	
 
-		DMGetLocalToGlobalMapping(da_nodal, &rmapping);	
+		ISLocalToGlobalMapping rmapping;
+		ISLocalToGlobalMapping cmapping;
+
+		DMGetLocalToGlobalMapping(da_nodal, &rmapping);
 		DMGetLocalToGlobalMapping(da_element, &cmapping);
 
 
@@ -175,16 +175,16 @@ PDEFilt::PDEFilt(TopOpt *opt)
 
 	FilterProject(X,X);
 	Gradients(X,X);
-	
+
 	//
 	PetscPrintf(PETSC_COMM_WORLD,"Done setting up the PDEFilter\n");
 }
 
 PetscErrorCode PDEFilt::FilterProject(Vec OX, Vec FX)
 {
-  
+
 	PetscErrorCode ierr;
-	
+
 	double t1,t2;
 	PetscScalar rnorm;
 	PetscInt niter;
@@ -223,22 +223,22 @@ PetscErrorCode PDEFilt::Free()
 	VecDestroy(&RHS);
 	VecDestroy(&X);
 	VecDestroy(&U);
-	
+
 	MatDestroy(&T);
 	MatDestroy(&K);
 
 	ierr=DMDestroy(&da_nodal);    CHKERRQ(ierr);
 	ierr=DMDestroy(&da_element);  CHKERRQ(ierr);
-	
+
 	  return ierr;
-	
+
 }
 
 void PDEFilt::MatAssemble()
 {
 	PetscInt myrank;
         MPI_Comm_rank(PETSC_COMM_WORLD, &myrank);
-	
+
 	// Get the FE mesh structure (from the nodal mesh)
         PetscInt nel, nen;
         const PetscInt *necon;
@@ -255,8 +255,8 @@ void PDEFilt::MatAssemble()
 		}
 
 		MatSetValuesLocal(K,8,edof,8,edof,KF,ADD_VALUES);
-		//assemble the T matrix 
-		MatSetValuesLocal(T,8,edof,1,&i,TF,ADD_VALUES);	
+		//assemble the T matrix
+		MatSetValuesLocal(T,8,edof,1,&i,TF,ADD_VALUES);
 
 
 	}
@@ -272,7 +272,7 @@ void PDEFilt::MatAssemble()
 
 PetscErrorCode PDEFilt::SetUpSolver()
 {
-	//make sure ksp is not allocated before 
+	//make sure ksp is not allocated before
 	PetscErrorCode ierr;
         PC pc;
 
@@ -312,7 +312,7 @@ PetscErrorCode PDEFilt::SetUpSolver()
                 for (PetscInt k=0; k<nlvls; k++) daclist[k] = NULL;
 		// Set 0 to the finest level
                 daclist[0] = da_nodal;
-		
+
 		// Coordinates
                 PetscReal xmin=xc[0], xmax=xc[1], ymin=xc[2], ymax=xc[3], zmin=xc[4], zmax=xc[5];
 
@@ -323,7 +323,7 @@ PetscErrorCode PDEFilt::SetUpSolver()
 			da_list[k] = daclist[nlvls-1-k];
 			DMDASetUniformCoordinates(da_list[k],xmin,xmax,ymin,ymax,zmin,zmax);
 		}
-		
+
 		// the PCMG specific options
                 PCMGSetLevels(pc,nlvls,NULL);
                 PCMGSetType(pc,PC_MG_MULTIPLICATIVE); // Default
@@ -392,7 +392,7 @@ PetscErrorCode PDEFilt::SetUpSolver()
 //         PetscPrintf(PETSC_COMM_WORLD,"##############################################################\n");
 //         PetscPrintf(PETSC_COMM_WORLD,"################# Linear solver settings #####################\n");
 //         PetscPrintf(PETSC_COMM_WORLD,"# Main solver: %s, prec.: %s, maxiter.: %i \n",ksptype,pctype,mmax);
-// 
+//
 //         // Only if pcmg is used
 //         if (pcmg_flag){
 //                 // Check the smoothers and coarse grid solver:
@@ -417,7 +417,7 @@ PetscErrorCode PDEFilt::SetUpSolver()
 }
 
 
-PetscErrorCode PDEFilt::DMDAGetElements_3D(DM dm,PetscInt *nel,PetscInt *nen,const PetscInt *e[]) 
+PetscErrorCode PDEFilt::DMDAGetElements_3D(DM dm,PetscInt *nel,PetscInt *nen,const PetscInt *e[])
 {
         DM_DA          *da = (DM_DA*)dm->data;
         PetscInt       i,xs,xe,Xs,Xe;
