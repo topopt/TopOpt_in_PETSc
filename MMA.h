@@ -30,7 +30,7 @@ class MMA{
 		PetscErrorCode ConstraintModification(PetscBool conMod){constraintModification = conMod; return 0;};
 
 		// val=0: default, val=1: increase robustness, i.e
-		// control the spacing between L < alp < x < beta < U, 
+		// control the spacing between L < alp < x < beta < U,
 		PetscErrorCode SetRobustAsymptotesType(PetscInt val);
 
 		// Sets outer movelimits on all primal design variables
@@ -38,7 +38,7 @@ class MMA{
 		PetscErrorCode SetOuterMovelimit(PetscScalar Xmin, PetscScalar Xmax, PetscScalar movelim, Vec x, Vec xmin, Vec xmax);
 
 		// Return KKT residual norms (norm2 and normInf)
-		PetscErrorCode KKTresidual(Vec xval, Vec dfdx, PetscScalar *gx, Vec *dgdx, Vec xmin, Vec xmax, 
+		PetscErrorCode KKTresidual(Vec xval, Vec dfdx, PetscScalar *gx, Vec *dgdx, Vec xmin, Vec xmax,
 				PetscScalar *norm2, PetscScalar *normInf);
 
 		// Inf norm on diff between two vectors: SHOULD NOT BE HERE - USE BASIC PETSc!!!!!
@@ -79,7 +79,7 @@ class MMA{
 		// Bool specifying if non lin constraints are included or not
 		PetscBool NonLinConstraints;
 
-		// 0: (default) span between alp L x U beta, 
+		// 0: (default) span between alp L x U beta,
 		// 1: increase the span for further robustness
 		PetscInt RobustAsymptotesType;
 

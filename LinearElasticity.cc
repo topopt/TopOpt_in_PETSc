@@ -3,10 +3,10 @@
 /*
  Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013
 
- Disclaimer:                                                              
- The authors reserves all rights but does not guaranty that the code is   
- free from errors. Furthermore, we shall not be liable in any event     
- caused by the use of the program.                                     
+ Disclaimer:
+ The authors reserves all rights but does not guaranty that the code is
+ free from errors. Furthermore, we shall not be liable in any event
+ caused by the use of the program.
 */
 
 
@@ -46,13 +46,13 @@ PetscErrorCode LinearElasticity::SetUpLoadAndBC(TopOpt *opt){
 	// Set the local stiffness matrix
 	PetscScalar a = opt->dx; // x-side length
 	PetscScalar b = opt->dy; // y-side length
-	PetscScalar c = opt->dz; // z-side length 
+	PetscScalar c = opt->dz; // z-side length
 	PetscScalar X[8] = {0.0, a, a, 0.0, 0.0, a, a, 0.0};
 	PetscScalar Y[8] = {0.0, 0.0, b, b, 0.0, 0.0, b, b};
 	PetscScalar Z[8] = {0.0, 0.0, 0.0, 0.0, c, c, c, c};
 
 	// Compute the element stiffnes matrix - constant due to structured grid
-	Hex8Isoparametric(X, Y, Z, 0.3, false, KE); 
+	Hex8Isoparametric(X, Y, Z, 0.3, false, KE);
 
 	// Set the RHS and Dirichlet vector
 	VecSet(N,1.0);
@@ -62,14 +62,14 @@ PetscErrorCode LinearElasticity::SetUpLoadAndBC(TopOpt *opt){
 	Vec lcoor; // borrowed ref - do not destroy!
 	PetscScalar *lcoorp;
 
-	// Get local coordinates in local node numbering including ghosts       
+	// Get local coordinates in local node numbering including ghosts
 	ierr = DMGetCoordinatesLocal(opt->da_nodes,&lcoor); CHKERRQ(ierr);
 	VecGetArray(lcoor,&lcoorp);
 
 	// Get local dof number
 	PetscInt nn;
-	VecGetSize(lcoor,&nn); 
-	
+	VecGetSize(lcoor,&nn);
+
 	// Compute epsilon parameter for finding points in space:
 	PetscScalar epsi = PetscMin(a*0.05,PetscMin(b*0.05,c*0.05));
 
@@ -86,18 +86,18 @@ PetscErrorCode LinearElasticity::SetUpLoadAndBC(TopOpt *opt){
 			VecSetValueLocal(N,++i,0.0,INSERT_VALUES);
 		}
 		// Line load
-		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[1]) < epsi && 
+		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[1]) < epsi &&
 				  PetscAbsScalar(lcoorp[i+2]-opt->xc[4]) < epsi){
 			VecSetValueLocal(RHS,i+2,-0.1,INSERT_VALUES);
 		}
 		// Adjust the corners
-		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[1]) < epsi && 
-				  PetscAbsScalar(lcoorp[i+1]-opt->xc[2]) < epsi && 
+		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[1]) < epsi &&
+				  PetscAbsScalar(lcoorp[i+1]-opt->xc[2]) < epsi &&
 				  PetscAbsScalar(lcoorp[i+2]-opt->xc[4]) < epsi ){
 			VecSetValueLocal(RHS,i+2,-0.05,INSERT_VALUES);
 		}
-		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[1]) < epsi && 
-				  PetscAbsScalar(lcoorp[i+1]-opt->xc[3]) < epsi && 
+		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[1]) < epsi &&
+				  PetscAbsScalar(lcoorp[i+1]-opt->xc[3]) < epsi &&
    				  PetscAbsScalar(lcoorp[i+2]-opt->xc[4]) < epsi){
 			VecSetValueLocal(RHS,i+2,-0.05,INSERT_VALUES);
 		}
@@ -117,12 +117,14 @@ PetscErrorCode LinearElasticity::SolveState(TopOpt *opt){
 
 	PetscErrorCode ierr;
 
-	double t1,t2;
+	double t1,t2,t3,t4;
 	t1 = MPI_Wtime();
 
 	// Assemble the stiffness matrix
 	ierr = AssembleStiffnessMatrix(opt);
 	CHKERRQ(ierr);
+
+	t3 = MPI_Wtime();
 
 	// Setup the solver
 	if (ksp==NULL){
@@ -132,9 +134,10 @@ PetscErrorCode LinearElasticity::SolveState(TopOpt *opt){
 	else {
 		ierr = KSPSetOperators(ksp,K,K);
 		CHKERRQ(ierr);
-		KSPSetUp(ksp); 
+		KSPSetUp(ksp);
 	}
 
+	t4 = MPI_Wtime();
 
 	// Solve
 	ierr = KSPSolve(ksp,RHS,U); CHKERRQ(ierr);
@@ -145,11 +148,14 @@ PetscErrorCode LinearElasticity::SolveState(TopOpt *opt){
 	PetscInt niter;
 	PetscScalar rnorm;
 	KSPGetIterationNumber(ksp,&niter);
-	KSPGetResidualNorm(ksp,&rnorm); 
+	KSPGetResidualNorm(ksp,&rnorm);
+
+    PetscInt m, n;
+	MatGetSize(K, &m, &n);
 
 	t2 = MPI_Wtime();
 
-	PetscPrintf(PETSC_COMM_WORLD,"State solver:  iter: %i, rerr.: %e, time: %f\n",niter,rnorm,t2-t1);
+	PetscPrintf(PETSC_COMM_WORLD,"State solver:  iter: %i, rerr.: %e, total time: %f, assembly time: %f, solve time: %f, sizes: %d %d\n",niter,rnorm,t2-t1, t3-t1, t2-t4, m, n);
 
 	return ierr;
 }
@@ -159,8 +165,8 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
 	// Error code
 	PetscErrorCode ierr;
 
-	// Solve state eqs 
-	ierr = SolveState(opt); CHKERRQ(ierr); 
+	// Solve state eqs
+	ierr = SolveState(opt); CHKERRQ(ierr);
 
 	// Get the FE mesh structure (from the nodal mesh)
 	PetscInt nel, nen;
@@ -197,7 +203,7 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
 		// Use SIMP for stiffness interpolation
 		PetscScalar uKu=0.0;
 		for (PetscInt k=0;k<24;k++){
-			for (PetscInt h=0;h<24;h++){	
+			for (PetscInt h=0;h<24;h++){
 				uKu += up[edof[k]]*KE[k*24+h]*up[edof[h]];
 			}
 		}
@@ -208,7 +214,7 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
 	// Allreduce fx[0]
 	PetscScalar tmp=opt->fx;
 	opt->fx=0.0;
-	MPI_Allreduce(&tmp,&(opt->fx),1,MPIU_SCALAR,MPI_SUM,PETSC_COMM_WORLD);		
+	MPI_Allreduce(&tmp,&(opt->fx),1,MPIU_SCALAR,MPI_SUM,PETSC_COMM_WORLD);
 
 	// Compute volume constraint gx[0]
 	opt->gx[0]=0;
@@ -220,7 +226,7 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
 	VecRestoreArray(Uloc,&up);
 	VecDestroy(&Uloc);
 
-	return(ierr);  
+	return(ierr);
 
 }
 
@@ -232,7 +238,7 @@ PetscErrorCode LinearElasticity::ComputeSensitivities(TopOpt *opt) {
 	PetscInt nel, nen;
 	const PetscInt *necon;
 	ierr = DMDAGetElements_3D(opt->da_nodes,&nel,&nen,&necon); CHKERRQ(ierr);
-	
+
 	// Get pointer to the densities
 	PetscScalar *xp;
 	VecGetArray(opt->xPhys,&xp);
@@ -266,7 +272,7 @@ PetscErrorCode LinearElasticity::ComputeSensitivities(TopOpt *opt) {
 		// Use SIMP for stiffness interpolation
 		PetscScalar uKu=0.0;
 		for (PetscInt k=0;k<24;k++){
-			for (PetscInt h=0;h<24;h++){	
+			for (PetscInt h=0;h<24;h++){
 				uKu += up[edof[k]]*KE[k*24+h]*up[edof[h]];
 			}
 		}
@@ -281,7 +287,7 @@ PetscErrorCode LinearElasticity::ComputeSensitivities(TopOpt *opt) {
 	VecRestoreArray(opt->dfdx,&df);
 	VecDestroy(&Uloc);
 
-	return(ierr);  
+	return(ierr);
 
 }
 
@@ -289,8 +295,8 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt
 	// Errorcode
 	PetscErrorCode ierr;
 
-	// Solve state eqs 
-	ierr = SolveState(opt); CHKERRQ(ierr); 
+	// Solve state eqs
+	ierr = SolveState(opt); CHKERRQ(ierr);
 
 	// Get the FE mesh structure (from the nodal mesh)
 	PetscInt nel, nen;
@@ -332,7 +338,7 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt
 		// Use SIMP for stiffness interpolation
 		PetscScalar uKu=0.0;
 		for (PetscInt k=0;k<24;k++){
-			for (PetscInt h=0;h<24;h++){	
+			for (PetscInt h=0;h<24;h++){
 				uKu += up[edof[k]]*KE[k*24+h]*up[edof[h]];
 			}
 		}
@@ -345,7 +351,7 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt
 	// Allreduce fx[0]
 	PetscScalar tmp=opt->fx;
 	opt->fx=0.0;
-	MPI_Allreduce(&tmp,&(opt->fx),1,MPIU_SCALAR,MPI_SUM,PETSC_COMM_WORLD);		
+	MPI_Allreduce(&tmp,&(opt->fx),1,MPIU_SCALAR,MPI_SUM,PETSC_COMM_WORLD);
 
 	// Compute volume constraint gx[0]
 	opt->gx[0]=0;
@@ -358,22 +364,22 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt
 	VecRestoreArray(opt->dfdx,&df);
 	VecDestroy(&Uloc);
 
-	return(ierr);  
+	return(ierr);
 
 }
 
 
 PetscErrorCode LinearElasticity::WriteRestartFiles(){
-  
+
 	PetscErrorCode ierr = 0;
-	
+
 	// Only dump data if correct allocater has been used
 	if (!restart){
 		return -1;
 	}
 
 	// Choose previous set of restart files
-	if (flip){ flip = PETSC_FALSE; 	}	
+	if (flip){ flip = PETSC_FALSE; 	}
 	else {     flip = PETSC_TRUE; 	}
 
 	// Open viewers for writing
@@ -384,15 +390,15 @@ PetscErrorCode LinearElasticity::WriteRestartFiles(){
 	else if (flip){
 		PetscViewerBinaryOpen(PETSC_COMM_WORLD,filename01.c_str(),FILE_MODE_WRITE,&view);
 	}
-	
+
 	// Write vectors
-	VecView(U,view);	
-	
+	VecView(U,view);
+
 	// Clean up
 	PetscViewerDestroy(&view);
-	
+
 	return ierr;
-  
+
 }
 
 
@@ -418,7 +424,7 @@ PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(TopOpt *opt){
 	VecGetArray(opt->xPhys,&xp);
 
 	// Zero the matrix
-	MatZeroEntries(K);	
+	MatZeroEntries(K);
 
 	// Edof array
 	PetscInt *edof = new PetscInt[24];
@@ -432,7 +438,7 @@ PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(TopOpt *opt){
 			for (PetscInt k=0;k<3;k++){
 				edof[j*3+k] = 3*necon[i*nen+j]+k;
 			}
-		} 
+		}
 		// Use SIMP for stiffness interpolation
 		PetscScalar dens = opt->Emin + PetscPowScalar(xp[i],opt->penal)*(opt->Emax-opt->Emin);
 		for (PetscInt k=0;k<24*24;k++){
@@ -470,16 +476,16 @@ PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(TopOpt *opt){
 PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 
 	PetscErrorCode ierr;
-	
+
 	// CHECK FOR RESTART POINT
 	restart = PETSC_TRUE;
-	flip = PETSC_TRUE;  
+	flip = PETSC_TRUE;
 	PetscBool flg, onlyDesign;
 	onlyDesign = PETSC_FALSE;
 	char filenameChar[PETSC_MAX_PATH_LEN];
 	PetscOptionsGetBool(NULL,"-restart",&restart,&flg);
 	PetscOptionsGetBool(NULL,"-onlyLoadDesign",&onlyDesign,&flg); // DONT READ DESIGN IF THIS IS TRUE
-	
+
 	// READ THE RESTART FILE INTO THE SOLUTION VECTOR(S)
 	if (restart){
 	    // THE FILES FOR WRITING RESTARTS
@@ -493,7 +499,7 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 	    filename01 = filenameWorkdir;
 	    filename00.append("/RestartSol00.dat");
 	    filename01.append("/RestartSol01.dat");
-	    
+
 	    // CHECK FOR SOLUTION AND READ TO STATE VECTOR(s)
 	    if (!onlyDesign){
 		  // Where to read the restart point from
@@ -503,27 +509,27 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 		  if (flg) {
 		    restartFileVec.append(filenameChar);
 		  }
-		
+
 		  // PRINT TO SCREEN
 		  PetscPrintf(PETSC_COMM_WORLD,"# Restarting with solution (State Vector) from (-restartFileVecSol): %s \n",restartFileVec.c_str());
-		  
+
 		  // Check if files exist:
 		  PetscBool vecFile = fexists(restartFileVec);
 		  if (!vecFile) { PetscPrintf(PETSC_COMM_WORLD,"File: %s NOT FOUND \n",restartFileVec.c_str()); }
-		  
+
 		  // READ
 		  if (vecFile){
 		      PetscViewer view;
-		      // Open the data files 
+		      // Open the data files
 		      ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD,restartFileVec.c_str(),FILE_MODE_READ,&view);
-		      
+
 		      VecLoad(U,view);
-		      
+
 		      PetscViewerDestroy(&view);
 		  }
 	    }
 	}
-		
+
 	PC pc;
 
 	// The fine grid Krylov method
@@ -579,7 +585,7 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 	PetscObjectTypeCompare((PetscObject)pc,PCMG,&pcmg_flag);
 
 	// Only if PCMG is used
-	if (pcmg_flag){ 
+	if (pcmg_flag){
 
 		// DMs for grid hierachy
 		DM  *da_list,*daclist;
@@ -599,7 +605,7 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 		// Set up the coarse meshes
 		DMCoarsenHierarchy(opt->da_nodes,opt->nlvls-1,&daclist[1]);
 		for (PetscInt k=0; k<opt->nlvls; k++) {
-			// NOTE: finest grid is nlevels - 1: PCMG MUST USE THIS ORDER ??? 
+			// NOTE: finest grid is nlevels - 1: PCMG MUST USE THIS ORDER ???
 			da_list[k] = daclist[opt->nlvls-1-k];
 			// THIS SHOULD NOT BE NECESSARY
 			DMDASetUniformCoordinates(da_list[k],xmin,xmax,ymin,ymax,zmin,zmax);
@@ -616,7 +622,7 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 			MatDestroy(&R);
 		}
 
-		// tidy up 
+		// tidy up
 		for (PetscInt k=1; k<opt->nlvls; k++) { // DO NOT DESTROY LEVEL 0
 			DMDestroy(&daclist[k]);
 		}
@@ -624,8 +630,8 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 		PetscFree(daclist);
 
 		// AVOID THE DEFAULT FOR THE MG PART
-		{ 
-			// SET the coarse grid solver: 
+		{
+			// SET the coarse grid solver:
 			// i.e. get a pointer to the ksp and change its settings
 			KSP cksp;
 			PCMGGetCoarseSolve(pc,&cksp);
@@ -638,7 +644,7 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 			// The preconditioner
 			PC cpc;
 			KSPGetPC(cksp,&cpc);
-			PCSetType(cpc,PCSOR); // PCSOR, PCSPAI (NEEDS TO BE COMPILED), PCJACOBI     
+			PCSetType(cpc,PCSOR); // PCSOR, PCSPAI (NEEDS TO BE COMPILED), PCJACOBI
 
 			// Set smoothers on all levels (except for coarse grid):
 			for (PetscInt k=1;k<opt->nlvls;k++){
@@ -650,7 +656,7 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 
 				ierr = KSPGMRESSetRestart(dksp,smooth_sweeps);
 				ierr = KSPSetTolerances(dksp,PETSC_DEFAULT,PETSC_DEFAULT,PETSC_DEFAULT,smooth_sweeps); // NOTE in the above maxitr=restart;
-				PCSetType(dpc,PCSOR);// PCJACOBI, PCSOR for KSPCHEBYSHEV very good   
+				PCSetType(dpc,PCSOR);// PCJACOBI, PCSOR for KSPCHEBYSHEV very good
 			}
 		}
 	}
@@ -697,7 +703,7 @@ PetscErrorCode LinearElasticity::DMDAGetElements_3D(DM dm,PetscInt *nel,PetscInt
 	PetscInt       j,ys,ye,Ys,Ye;
 	PetscInt       k,zs,ze,Zs,Ze;
 	PetscInt       cnt=0, cell[8], ns=1, nn=8;
-	PetscInt       c; 
+	PetscInt       c;
 	if (!da->e) {
 		if (da->elementtype == DMDA_ELEMENT_Q1) {ns=1; nn=8;}
 		ierr = DMDAGetCorners(dm,&xs,&ys,&zs,&xe,&ye,&ze);
@@ -784,11 +790,11 @@ PetscInt LinearElasticity::Hex8Isoparametric(PetscScalar *X, PetscScalar *Y, Pet
 		{lambda, lambda+2.0*mu, lambda, 0.0, 0.0, 0.0},
 		{lambda, lambda, lambda+2.0*mu, 0.0, 0.0, 0.0},
 		{0.0,    0.0,    0.0,           mu,  0.0, 0.0},
-		{0.0, 	0.0, 	0.0, 		   0.0, mu,  0.0}, 
+		{0.0, 	0.0, 	0.0, 		   0.0, mu,  0.0},
 		{0.0, 	0.0,	0.0, 		   0.0, 0.0, mu}};
 	// Gauss points (GP) and weigths
 	// Two Gauss points in all directions (total of eight)
-	PetscScalar GP[2] = {-0.577350269189626, 0.577350269189626}; 
+	PetscScalar GP[2] = {-0.577350269189626, 0.577350269189626};
 	// Corresponding weights
 	PetscScalar W[2] = {1.0, 1.0};
 	// If reduced integration only use one GP
@@ -817,8 +823,8 @@ PetscInt LinearElasticity::Hex8Isoparametric(PetscScalar *X, PetscScalar *Y, Pet
 		for (PetscInt jj=0; jj<2-redInt; jj++){
 			for (PetscInt kk=0; kk<2-redInt; kk++){
 				// Integration point
-				PetscScalar xi = GP[ii]; 
-				PetscScalar eta = GP[jj]; 
+				PetscScalar xi = GP[ii];
+				PetscScalar eta = GP[jj];
 				PetscScalar zeta = GP[kk];
 				// Differentiated shape functions
 				DifferentiatedShapeFunctions(xi, eta, zeta, dNdxi, dNdeta, dNdzeta);
@@ -857,7 +863,7 @@ PetscInt LinearElasticity::Hex8Isoparametric(PetscScalar *X, PetscScalar *Y, Pet
 					for (PetscInt j=0; j<24; j++){
 						for (PetscInt k=0; k<6; k++){
 							for (PetscInt l=0; l<6; l++){
-								
+
 								ke[j+24*i] = ke[j+24*i] + weight*(B[k][i] * C[k][l] * B[l][j]);
 							}
 						}

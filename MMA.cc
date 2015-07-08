@@ -4,7 +4,7 @@
 #include <math.h>
 
 
-MMA::MMA(PetscInt nn, PetscInt mm, PetscInt kk, Vec xo1t,Vec xo2t,Vec Ut,Vec Lt, 
+MMA::MMA(PetscInt nn, PetscInt mm, PetscInt kk, Vec xo1t,Vec xo2t,Vec Ut,Vec Lt,
 		PetscScalar *at, PetscScalar *ct, PetscScalar *dt){
 	n = nn;
 	m = mm;
@@ -87,7 +87,7 @@ MMA::MMA(PetscInt nn, PetscInt mm, PetscInt kk, Vec xo1t,Vec xo2t,Vec Ut,Vec Lt,
 	VecRestoreArray(xo1,&pxo1);
 	VecRestoreArray(xo2,&pxo2);
 	VecRestoreArray(U,&pU);
-	VecRestoreArray(L,&pL);	
+	VecRestoreArray(L,&pL);
 
 }
 
@@ -175,7 +175,7 @@ MMA::MMA(PetscInt nn, PetscInt mm, PetscInt kk, Vec xo1t,Vec xo2t,Vec Ut,Vec Lt)
 	VecRestoreArray(xo1,&pxo1);
 	VecRestoreArray(xo2,&pxo2);
 	VecRestoreArray(U,&pU);
-	VecRestoreArray(L,&pL);	
+	VecRestoreArray(L,&pL);
 
 }
 
@@ -310,46 +310,46 @@ MMA::~MMA(){
 // restart method
 
 PetscErrorCode MMA::Restart(Vec xo1t,Vec xo2t,Vec Ut,Vec Lt){
-  
+
 	PetscErrorCode ierr=0;
-  
+
   	// Insert values into xo1t,xo2t,Ut,Lt
 	PetscInt nloc;
 	VecGetLocalSize(xo1t,&nloc);
-	
+
 	// input
 	PetscScalar *pxo1t, *pxo2t, *pUt, *pLt;
 	VecGetArray(xo1t,&pxo1t);
 	VecGetArray(xo2t,&pxo2t);
 	VecGetArray(Ut,&pUt);
 	VecGetArray(Lt,&pLt);
-	
+
 	// internal
 	PetscScalar *pxo1, *pxo2, *pU, *pL;
 	VecGetArray(xo1,&pxo1);
 	VecGetArray(xo2,&pxo2);
 	VecGetArray(U,&pU);
 	VecGetArray(L,&pL);
-	
+
 	// Copy data
 	memcpy(pxo1t,pxo1,nloc*sizeof(PetscScalar));
 	memcpy(pxo2t,pxo2,nloc*sizeof(PetscScalar));
 	memcpy(pUt,pU,nloc*sizeof(PetscScalar));
 	memcpy(pLt,pL,nloc*sizeof(PetscScalar));
-	
+
 	// Restore arrays
 	VecRestoreArray(xo1t,&pxo1t);
 	VecRestoreArray(xo2t,&pxo2t);
 	VecRestoreArray(Ut,&pUt);
 	VecRestoreArray(Lt,&pLt);
-	
+
 	VecRestoreArray(xo1,&pxo1);
 	VecRestoreArray(xo2,&pxo2);
 	VecRestoreArray(U,&pU);
 	VecRestoreArray(L,&pL);
-	
+
 	return(ierr);
-  
+
 }
 
 // Set the aggresivity of the moving asymptotes
@@ -418,11 +418,11 @@ PetscScalar MMA::DesignChange(Vec x, Vec xold){
 	VecRestoreArray(x,&xv);
 	VecRestoreArray(xold,&xo);
 
-	return(ch); 
+	return(ch);
 
 }
 
-PetscErrorCode MMA::KKTresidual(Vec x, Vec dfdx, PetscScalar *fx, Vec *dgdx, Vec xmin, Vec xmax, 
+PetscErrorCode MMA::KKTresidual(Vec x, Vec dfdx, PetscScalar *fx, Vec *dgdx, Vec xmin, Vec xmax,
 		PetscScalar *norm2, PetscScalar *normInf){
 	PetscErrorCode ierr=0;
 
@@ -488,7 +488,7 @@ PetscErrorCode MMA::KKTresidual(Vec x, Vec dfdx, PetscScalar *fx, Vec *dgdx, Vec
 	normInf[0]=Max(Abs(ri),normInf[0]);
 	norm2[0]=sqrt(norm2[0]);
 
-	return ierr;			  
+	return ierr;
 }
 
 // Set and solve a subproblem: return new xval
@@ -523,7 +523,7 @@ PetscErrorCode MMA::GenSub(Vec xval, Vec dfdx, PetscScalar *gx, Vec *dgdx, Vec x
 	PetscInt nloc;
 	VecGetLocalSize(xval,&nloc);
 	PetscScalar *xv, *Lv, *Uv, *x1v, *x2v, *xminv, *xmaxv;
-	PetscScalar *alf, *bet, *dfdxv, *p0v, *q0v, **dgdxv, **pijv, **qijv; 
+	PetscScalar *alf, *bet, *dfdxv, *p0v, *q0v, **dgdxv, **pijv, **qijv;
 	if (k<3){
 		VecAXPBYPCZ(L,(PetscScalar)1.0,-asyminit,(PetscScalar)0.0,xval,xmax);
 		VecAXPY(L,asyminit,xmin);
@@ -566,7 +566,7 @@ PetscErrorCode MMA::GenSub(Vec xval, Vec dfdx, PetscScalar *gx, Vec *dgdx, Vec x
 				Lv[i]=Min(Lv[i],xv[i]-0.01*xmi);
 				Uv[i]=Max(Uv[i],xv[i]+0.01*xmi);
 				Uv[i]=Min(Uv[i],xv[i]+10.0*xmi);
-			} 
+			}
 			else if (RobustAsymptotesType == 1) {
 				Lv[i]=Max(Lv[i],xv[i]-100.0*xmi);
 				Lv[i]=Min(Lv[i],xv[i]-1.0e-4*xmi);
@@ -588,7 +588,7 @@ PetscErrorCode MMA::GenSub(Vec xval, Vec dfdx, PetscScalar *gx, Vec *dgdx, Vec x
 		}
 	}
 	PetscScalar dfdxp, dfdxm;
-	PetscScalar feps = 1.0e-6;	
+	PetscScalar feps = 1.0e-6;
 	for (PetscInt i=0; i<nloc; i++){
 		alf[i] = Max(xminv[i],0.9*Lv[i]+0.1*xv[i]);
 		bet[i]  = Min(xmaxv[i],0.9*Uv[i]+0.1*xv[i]);
@@ -607,7 +607,7 @@ PetscErrorCode MMA::GenSub(Vec xval, Vec dfdx, PetscScalar *gx, Vec *dgdx, Vec x
 				qijv[j][i] = pow(xv[i]-Lv[i],2.0)*( dfdxm );
 			}
 		}
-	}	
+	}
 	for (PetscInt j=0;j<m;j++){
 		b[j]=0.0;
 		for (PetscInt i=0;i<nloc;i++){
