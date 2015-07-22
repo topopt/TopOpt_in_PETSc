@@ -130,7 +130,7 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 	PetscErrorCode ierr;
 	
   	// Get rank from MPI
-	PetscInt myrank;
+	PetscMPIInt myrank;
 	MPI_Comm_rank(PETSC_COMM_WORLD, &myrank);
   
 	if (opt->filter==0 || opt->filter==1){
