@@ -129,10 +129,6 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 
 	PetscErrorCode ierr;
 
-	// Get rank from MPI
-	PetscMPIInt myrank;
-	MPI_Comm_rank(PETSC_COMM_WORLD, &myrank);
-
 	if (opt->filter==0 || opt->filter==1){
 
 		// Extract information from the nodal mesh
@@ -210,30 +206,49 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 		DMCreateMatrix(da_elem,&H);
 		DMCreateGlobalVector(da_elem,&Hs);
 
-		//Set the filter matrix and vector
-		// 1. assemble H
+		// Set the filter matrix and vector
 		DMGetCoordinatesLocal(da_elem,&lcoor);
 		VecGetArray(lcoor,&lcoorp);
 		DMDALocalInfo info;
 		DMDAGetLocalInfo(da_elem,&info);
+		// The variables from info that are used are described below:
+		// -------------------------------------------------------------------------
+		// sw = Stencil width
+		// mx, my, mz = Global number of "elements" in each direction 
+		// xs, ys, zs = Starting point of this processor, excluding ghosts
+		// xm, ym, zm = Number of grid points on this processor, excluding ghosts
+		// gxs, gys, gzs = Starting point of this processor, including ghosts
+		// gxm, gym, gzm = Number of grid points on this processor, including ghosts
+		// -------------------------------------------------------------------------
+		
 		// Outer loop is local part = find row
+		// What is done here, is:
+		// 
+		// 1. Run through all elements in the mesh - should not include ghosts
 		for (PetscInt k=info.zs; k<info.zs+info.zm; k++) {
 			for (PetscInt j=info.ys; j<info.ys+info.ym; j++) {
 				for (PetscInt i=info.xs; i<info.xs+info.xm; i++) {
-					PetscInt col = (i-info.gxs) + (j-info.gys)*(info.gxm) + (k-info.gzs  )*(info.gxm)*(info.gym);
-					// Loop over nodes (including ghosts) within a cubic domain with center at (i,j,k)
-					for (PetscInt k2=PetscMax(k-info.sw,0);k2<=PetscMin(k+info.sw,info.mz);k2++){
-						for (PetscInt j2=PetscMax(j-info.sw,0);j2<=PetscMin(j+info.sw,info.my);j2++){
-							for (PetscInt i2=PetscMax(i-info.sw,0);i2<=PetscMin(i+info.sw,info.mx);i2++){
-								PetscInt row = (i2-info.gxs) + (j2-info.gys)*(info.gxm) + (k2-info.gzs  )*(info.gxm)*(info.gym);
+					// The row number of the element we are considering:
+					PetscInt row = (i-info.gxs) + (j-info.gys)*(info.gxm) + (k-info.gzs)*(info.gxm)*(info.gym);
+					//
+					// 2. Loop over nodes (including ghosts) within a cubic domain with center at (i,j,k)
+					//    For each element, run through all elements in a box of size stencilWidth * stencilWidth * stencilWidth 
+					//    Remark, we want to make sure we are not running "out of the domain", 
+					//    therefore k2 etc. are limited to the max global index (info.mz-1 etc.)
+					for (PetscInt k2=PetscMax(k-info.sw,0);k2<=PetscMin(k+info.sw,info.mz-1);k2++){
+						for (PetscInt j2=PetscMax(j-info.sw,0);j2<=PetscMin(j+info.sw,info.my-1);j2++){
+							for (PetscInt i2=PetscMax(i-info.sw,0);i2<=PetscMin(i+info.sw,info.mx-1);i2++){
+								PetscInt col = (i2-info.gxs) + (j2-info.gys)*(info.gxm) + (k2-info.gzs)*(info.gxm)*(info.gym);
 								PetscScalar dist = 0.0;
+								// Compute the distance from the "col"-element to the "row"-element
 								for(PetscInt kk=0; kk<3; kk++){
-									dist = dist + PetscPowScalar(lcoorp[3*col+kk]-lcoorp[3*row+kk],2.0);
+									dist = dist + PetscPowScalar(lcoorp[3*row+kk]-lcoorp[3*col+kk],2.0);
 								}
 								dist = PetscSqrtScalar(dist);
 								if (dist<opt->rmin){
+									// Longer distances should have less weight
 									dist = opt->rmin-dist;
-									MatSetValuesLocal(H, 1, &col, 1, &row, &dist, INSERT_VALUES); 
+									MatSetValuesLocal(H, 1, &row, 1, &col, &dist, INSERT_VALUES); 
 								}
 							}
 						}
@@ -244,7 +259,7 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 		// Assemble H:
 		MatAssemblyBegin(H, MAT_FINAL_ASSEMBLY);
 		MatAssemblyEnd(H, MAT_FINAL_ASSEMBLY);
-		// 2. compute the Hs, i.e. sum the rows
+		// Compute the Hs, i.e. sum the rows
 		Vec dummy;
 		VecDuplicate(Hs,&dummy);
 		VecSet(dummy,1.0);
