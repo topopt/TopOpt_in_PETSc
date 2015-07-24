@@ -562,6 +562,9 @@ void MPIIO::writePointFields(unsigned long int timeStep, int domain, float field
 	if (ierror) {abort("Problems closing file", "MPIIO::writePointFields");}
 	// Check if it was the first time this function has been called 
 	if (!firstFieldOutputDone){firstFieldOutputDone = true;}
+	// Free the memory used for filetype
+	ierror = MPI_Type_free(&filetype);
+	if (ierror) {abort("Problems freeing datatype", "MPIIO::writePointFields");}
 	// Finally, update the offset to the beginning of the last field we wrote
 	offset += stride*(count-1)*MPI_FS;
 }
@@ -619,6 +622,9 @@ void MPIIO::writeCellFields(int domain, float fields[])
 	// Close the file
 	ierror = MPI_File_close(&fh);
 	if (ierror) {abort("Problems closing file", "MPIIO::writeCellFields");}
+	// Free the memory used for filetype
+	ierror = MPI_Type_free(&filetype);
+	if (ierror) {abort("Problems freeing datatype", "MPIIO::writePointFields");}
 	// Finally, update the offset to the beginning of the last field we wrote
 	offset += stride*(count-1)*MPI_FS;
 }
