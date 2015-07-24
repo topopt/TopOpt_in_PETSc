@@ -20,7 +20,7 @@ int main(int argc, char *argv[]){
 
 	// Error code for debugging
 	PetscErrorCode ierr;
-
+	
 	// Initialize PETSc / MPI and pass input arguments to PETSc
 	PetscInitialize(&argc,&argv,PETSC_NULL,help);
 
@@ -32,10 +32,9 @@ int main(int argc, char *argv[]){
 
 	// STEP 3: THE FILTERING
 	Filter *filter = new Filter(opt);
-
+	
 	// STEP 4: VISUALIZATION USING VTK
 	MPIIO *output = new MPIIO(opt->da_nodes,3,"ux, uy, uz",2,"x, xPhys");
-
 	// STEP 5: THE OPTIMIZER MMA
 	MMA *mma;
 	PetscInt itr=0;
@@ -43,7 +42,7 @@ int main(int argc, char *argv[]){
 
 	// STEP 6: FILTER THE INITIAL DESIGN/RESTARTED DESIGN
 	ierr = filter->FilterProject(opt); CHKERRQ(ierr);
-
+	
 	// STEP 7: OPTIMIZATION LOOP   
 	PetscScalar ch = 1.0;
 	double t1,t2;
@@ -56,7 +55,7 @@ int main(int argc, char *argv[]){
 
 		// Compute (a) obj+const, (b) sens, (c) obj+const+sens 
 		ierr = physics->ComputeObjectiveConstraintsSensitivities(opt); CHKERRQ(ierr);
-
+		
 		// Compute objective scale
 		if (itr==1){ 
 			opt->fscale = 10.0/opt->fx; 
@@ -76,7 +75,7 @@ int main(int argc, char *argv[]){
 
 		// Inf norm on the design change
 		ch = mma->DesignChange(opt->x,opt->xold);
-
+		
 		// Filter design field
 		ierr = filter->FilterProject(opt); CHKERRQ(ierr);
 
