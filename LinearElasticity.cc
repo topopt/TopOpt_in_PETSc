@@ -182,7 +182,7 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
 	VecGetArray(Uloc,&up);
 
 	// Edof array
-	PetscInt *edof = new PetscInt[24];
+	PetscInt edof[24];
 
 	opt->fx = 0.0;
 	// Loop over elements
@@ -252,7 +252,7 @@ PetscErrorCode LinearElasticity::ComputeSensitivities(TopOpt *opt) {
 	VecGetArray(opt->dfdx,&df);
 
 	// Edof array
-	PetscInt *edof = new PetscInt[24];
+	PetscInt edof[24];
 
 	// Loop over elements
 	for (PetscInt i=0;i<nel;i++){
@@ -317,7 +317,7 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt
 	VecGetArray(opt->dfdx,&df);
 
 	// Edof array
-	PetscInt *edof = new PetscInt[24];
+	PetscInt edof[24];
 
 	opt->fx = 0.0;
 	// Loop over elements
@@ -421,7 +421,7 @@ PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(TopOpt *opt){
 	MatZeroEntries(K);	
 
 	// Edof array
-	PetscInt *edof = new PetscInt[24];
+	PetscInt edof[24];
 	PetscScalar ke[24*24];
 
 	// Loop over elements
@@ -459,7 +459,6 @@ PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(TopOpt *opt){
 	// with Dirichlet conditions
 	VecPointwiseMult(RHS,RHS,N);
 
-	delete [] edof;
 	VecDestroy(&NI);
 	VecRestoreArray(opt->xPhys,&xp);
 	DMDARestoreElements(opt->da_nodes,&nel,&nen,&necon);
@@ -608,7 +607,7 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 		// the PCMG specific options
 		PCMGSetLevels(pc,opt->nlvls,NULL);
 		PCMGSetType(pc,PC_MG_MULTIPLICATIVE); // Default
-		PCMGSetCycleType(pc,PC_MG_CYCLE_V);
+		ierr = PCMGSetCycleType(pc,PC_MG_CYCLE_V); CHKERRQ(ierr);
 		PCMGSetGalerkin(pc,PETSC_TRUE);
 		for (PetscInt k=1; k<opt->nlvls; k++) {
 			DMCreateInterpolation(da_list[k-1],da_list[k],&R,NULL);
