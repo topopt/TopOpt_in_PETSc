@@ -118,7 +118,7 @@ MPIIO::MPIIO(DM da_nodes, int nPf, std::string pnames,int nCf, std::string cname
 
 	// Allocate working arrays for outputting fields from timesteps:
 	workPointField = new float[nPointsMyrank[0]*nPFields[0]]; // For first domain
-	workCellField  = new float[nCellsMyrank[0]*nCFields[0]];         // For first domain
+	workCellField  = new float[nCellsMyrank[0]*nCFields[0]];  // For first domain
 
 	delete [] pointsDomain0;
 	delete [] cellsDomain0;
@@ -129,8 +129,7 @@ MPIIO::MPIIO(DM da_nodes, int nPf, std::string pnames,int nCf, std::string cname
 }
 
 // Destructor
-MPIIO::~MPIIO()
-{
+MPIIO::~MPIIO(){
 	// Delete the allocated arrays
 	delete [] workPointField;
 	delete [] workCellField;
@@ -219,12 +218,12 @@ void MPIIO::Allocate(std::string info, const int nDom, const int nPFields[],
 	
 	// Check PETSc input for a work directory
 	char filenameChar[PETSC_MAX_PATH_LEN];
-	PetscBool flg;	
+	PetscBool flg = PETSC_FALSE;	
 	PetscOptionsGetString(NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
 
 	// If input, change path of the file in filename
 	if (flg){
-	        filename="";
+		filename="";
 		filename.append(filenameChar);
 		filename.append("/output.dat");
 	}
