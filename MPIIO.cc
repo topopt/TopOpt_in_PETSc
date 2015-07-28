@@ -624,7 +624,7 @@ void MPIIO::writeCellFields(int domain, float fields[])
 	if (ierror) {abort("Problems closing file", "MPIIO::writeCellFields");}
 	// Free the memory used for filetype
 	ierror = MPI_Type_free(&filetype);
-	if (ierror) {abort("Problems freeing datatype", "MPIIO::writePointFields");}
+	if (ierror) {abort("Problems freeing datatype", "MPIIO::writeCellFields");}
 	// Finally, update the offset to the beginning of the last field we wrote
 	offset += stride*(count-1)*MPI_FS;
 }
