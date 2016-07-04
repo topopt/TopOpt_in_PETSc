@@ -105,18 +105,17 @@ PetscErrorCode TopOpt::SetUpMESH(){
 	PetscBool flg;
 	
 	// Physics parameters
-	PetscOptionsGetInt(NULL,"-nx",&(nxyz[0]),&flg);
-	PetscOptionsGetInt(NULL,"-ny",&(nxyz[1]),&flg);
-	PetscOptionsGetInt(NULL,"-nz",&(nxyz[2]),&flg);
-	PetscOptionsGetReal(NULL,"-xcmin",&(xc[0]),&flg);	
-	PetscOptionsGetReal(NULL,"-xcmax",&(xc[1]),&flg);
-	PetscOptionsGetReal(NULL,"-ycmin",&(xc[2]),&flg);
-	PetscOptionsGetReal(NULL,"-ycmax",&(xc[3]),&flg);
-	PetscOptionsGetReal(NULL,"-zcmin",&(xc[4]),&flg);
-	PetscOptionsGetReal(NULL,"-zcmax",&(xc[5]),&flg);
-        PetscOptionsGetReal(NULL,"-penal",&penal,&flg);
-// 	PetscOptionsGetReal(NULL,"-nu",&(nu),&flg);
-	PetscOptionsGetInt(NULL,"-nlvls",&nlvls,&flg);
+	PetscOptionsGetInt(NULL,NULL,"-nx",&(nxyz[0]),&flg);
+	PetscOptionsGetInt(NULL,NULL,"-ny",&(nxyz[1]),&flg);
+	PetscOptionsGetInt(NULL,NULL,"-nz",&(nxyz[2]),&flg);
+	PetscOptionsGetReal(NULL,NULL,"-xcmin",&(xc[0]),&flg);	
+	PetscOptionsGetReal(NULL,NULL,"-xcmax",&(xc[1]),&flg);
+	PetscOptionsGetReal(NULL,NULL,"-ycmin",&(xc[2]),&flg);
+	PetscOptionsGetReal(NULL,NULL,"-ycmax",&(xc[3]),&flg);
+	PetscOptionsGetReal(NULL,NULL,"-zcmin",&(xc[4]),&flg);
+	PetscOptionsGetReal(NULL,NULL,"-zcmax",&(xc[5]),&flg);
+   PetscOptionsGetReal(NULL,NULL,"-penal",&penal,&flg);
+	PetscOptionsGetInt(NULL,NULL,"-nlvls",&nlvls,&flg);
 
 	
 	// Write parameters for the physics _ OWNED BY TOPOPT
@@ -255,16 +254,16 @@ PetscErrorCode TopOpt::SetUpOPT(){
 	PetscBool flg;
 	
 	// Optimization paramteres
-	PetscOptionsGetReal(NULL,"-Emin",&Emin,&flg);
-	PetscOptionsGetReal(NULL,"-Emax",&Emax,&flg);
-	PetscOptionsGetReal(NULL,"-volfrac",&volfrac,&flg);
-        PetscOptionsGetReal(NULL,"-penal",&penal,&flg);
-	PetscOptionsGetReal(NULL,"-rmin",&rmin,&flg);
-	PetscOptionsGetInt(NULL,"-maxItr",&maxItr,&flg);
-	PetscOptionsGetInt(NULL,"-filter",&filter,&flg);
-	PetscOptionsGetReal(NULL,"-Xmin",&Xmin,&flg);
-        PetscOptionsGetReal(NULL,"-Xmax",&Xmax,&flg);
-	PetscOptionsGetReal(NULL,"-movlim",&movlim,&flg);
+	PetscOptionsGetReal(NULL,NULL,"-Emin",&Emin,&flg);
+	PetscOptionsGetReal(NULL,NULL,"-Emax",&Emax,&flg);
+	PetscOptionsGetReal(NULL,NULL,"-volfrac",&volfrac,&flg);
+   PetscOptionsGetReal(NULL,NULL,"-penal",&penal,&flg);
+	PetscOptionsGetReal(NULL,NULL,"-rmin",&rmin,&flg);
+	PetscOptionsGetInt(NULL,NULL,"-maxItr",&maxItr,&flg);
+	PetscOptionsGetInt(NULL,NULL,"-filter",&filter,&flg);
+	PetscOptionsGetReal(NULL,NULL,"-Xmin",&Xmin,&flg);
+        PetscOptionsGetReal(NULL,NULL,"-Xmax",&Xmax,&flg);
+	PetscOptionsGetReal(NULL,NULL,"-movlim",&movlim,&flg);
         
 	PetscPrintf(PETSC_COMM_WORLD,"################### Optimization settings ####################\n");
 	PetscPrintf(PETSC_COMM_WORLD,"# Problem size: n= %i, m= %i\n",n,m);
@@ -323,8 +322,8 @@ PetscErrorCode TopOpt::AllocateMMAwithRestart(PetscInt *itr, MMA **mma)  {
 	// Get inputs
 	PetscBool flg;
 	char filenameChar[PETSC_MAX_PATH_LEN];
-	PetscOptionsGetBool(NULL,"-restart",&restart,&flg);
-	PetscOptionsGetBool(NULL,"-onlyLoadDesign",&onlyLoadDesign,&flg);
+	PetscOptionsGetBool(NULL,NULL,"-restart",&restart,&flg);
+	PetscOptionsGetBool(NULL,NULL,"-onlyLoadDesign",&onlyLoadDesign,&flg);
 
 	if (restart) {
 	  ierr = VecDuplicate(x,&xo1); CHKERRQ(ierr);
@@ -335,7 +334,7 @@ PetscErrorCode TopOpt::AllocateMMAwithRestart(PetscInt *itr, MMA **mma)  {
 	
 	// Determine the right place to write the new restart files
 	std::string filenameWorkdir = "./";
-	PetscOptionsGetString(NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
+	PetscOptionsGetString(NULL,NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
 	if (flg){
 		filenameWorkdir = "";
 		filenameWorkdir.append(filenameChar);
@@ -354,11 +353,11 @@ PetscErrorCode TopOpt::AllocateMMAwithRestart(PetscInt *itr, MMA **mma)  {
 	std::string restartFileVec = ""; // NO RESTART FILE !!!!!
 	std::string restartFileItr = ""; // NO RESTART FILE !!!!!
 
-	PetscOptionsGetString(NULL,"-restartFileVec",filenameChar,sizeof(filenameChar),&flg);
+	PetscOptionsGetString(NULL,NULL,"-restartFileVec",filenameChar,sizeof(filenameChar),&flg);
 	if (flg) {
 	   restartFileVec.append(filenameChar);
 	}
-	PetscOptionsGetString(NULL,"-restartFileItr",filenameChar,sizeof(filenameChar),&flg);
+	PetscOptionsGetString(NULL,NULL,"-restartFileItr",filenameChar,sizeof(filenameChar),&flg);
 	if (flg) {
 		restartFileItr.append(filenameChar);
 	}

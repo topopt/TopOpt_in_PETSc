@@ -476,14 +476,14 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 	PetscBool flg, onlyDesign;
 	onlyDesign = PETSC_FALSE;
 	char filenameChar[PETSC_MAX_PATH_LEN];
-	PetscOptionsGetBool(NULL,"-restart",&restart,&flg);
-	PetscOptionsGetBool(NULL,"-onlyLoadDesign",&onlyDesign,&flg); // DONT READ DESIGN IF THIS IS TRUE
+	PetscOptionsGetBool(NULL,NULL,"-restart",&restart,&flg);
+	PetscOptionsGetBool(NULL,NULL,"-onlyLoadDesign",&onlyDesign,&flg); // DONT READ DESIGN IF THIS IS TRUE
 	
 	// READ THE RESTART FILE INTO THE SOLUTION VECTOR(S)
 	if (restart){
 	    // THE FILES FOR WRITING RESTARTS
 	    std::string filenameWorkdir = "./";
-	    PetscOptionsGetString(NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
+	    PetscOptionsGetString(NULL,NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
 	    if (flg){
 		    filenameWorkdir = "";
 		    filenameWorkdir.append(filenameChar);
@@ -498,7 +498,7 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 		  // Where to read the restart point from
 		  std::string restartFileVec = ""; // NO RESTART FILE !!!!!
 		  // GET FILENAME
-		  PetscOptionsGetString(NULL,"-restartFileVecSol",filenameChar,sizeof(filenameChar),&flg);
+		  PetscOptionsGetString(NULL,NULL,"-restartFileVecSol",filenameChar,sizeof(filenameChar),&flg);
 		  if (flg) {
 		    restartFileVec.append(filenameChar);
 		  }

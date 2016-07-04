@@ -219,7 +219,7 @@ void MPIIO::Allocate(std::string info, const int nDom, const int nPFields[],
 	// Check PETSc input for a work directory
 	char filenameChar[PETSC_MAX_PATH_LEN];
 	PetscBool flg = PETSC_FALSE;	
-	PetscOptionsGetString(NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
+	PetscOptionsGetString(NULL,NULL,"-workdir",filenameChar,sizeof(filenameChar),&flg);
 
 	// If input, change path of the file in filename
 	if (flg){
