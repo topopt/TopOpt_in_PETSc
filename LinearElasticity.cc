@@ -146,9 +146,11 @@ PetscErrorCode LinearElasticity::SolveState(TopOpt *opt){
 	PetscScalar rnorm;
 	KSPGetIterationNumber(ksp,&niter);
 	KSPGetResidualNorm(ksp,&rnorm); 
-
+	PetscReal RHSnorm;
+   	ierr = VecNorm(RHS,NORM_2,&RHSnorm); CHKERRQ(ierr);
+	rnorm = rnorm/RHSnorm;
+	
 	t2 = MPI_Wtime();
-
 	PetscPrintf(PETSC_COMM_WORLD,"State solver:  iter: %i, rerr.: %e, time: %f\n",niter,rnorm,t2-t1);
 
 	return ierr;
