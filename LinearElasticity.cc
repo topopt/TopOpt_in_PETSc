@@ -215,7 +215,7 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
 	// Compute volume constraint gx[0]
 	opt->gx[0]=0;
 	VecSum(opt->xPhys, &(opt->gx[0]));
-	opt->gx[0]=opt->gx[0]/(((PetscScalar)opt->n)*opt->volfrac)-1.0;
+	opt->gx[0]=opt->gx[0]/(((PetscScalar)opt->n))-opt->volfrac;
 
 
 	VecRestoreArray(opt->xPhys,&xp);
@@ -276,7 +276,7 @@ PetscErrorCode LinearElasticity::ComputeSensitivities(TopOpt *opt) {
 		df[i]= -1.0 * opt->penal*PetscPowScalar(xp[i],opt->penal-1)*(opt->Emax - opt->Emin)*uKu;
 	}
 	// Compute volume constraint gx[0]
-	VecSet(opt->dgdx[0],1.0/(((PetscScalar)opt->n)*opt->volfrac));
+	VecSet(opt->dgdx[0],1.0/(((PetscScalar)opt->n)));
 
 	VecRestoreArray(opt->xPhys,&xp);
 	VecRestoreArray(Uloc,&up);
@@ -352,8 +352,8 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt
 	// Compute volume constraint gx[0]
 	opt->gx[0]=0;
 	VecSum(opt->xPhys, &(opt->gx[0]));
-	opt->gx[0]=opt->gx[0]/(((PetscScalar)opt->n)*opt->volfrac)-1.0;
-	VecSet(opt->dgdx[0],1.0/(((PetscScalar)opt->n)*opt->volfrac));
+	opt->gx[0]=opt->gx[0]/(((PetscScalar)opt->n))-opt->volfrac;
+	VecSet(opt->dgdx[0],1.0/(((PetscScalar)opt->n)));
 
 	VecRestoreArray(opt->xPhys,&xp);
 	VecRestoreArray(Uloc,&up);
