@@ -183,6 +183,10 @@ PetscErrorCode TopOpt::SetUpMESH(){
 			numnodaldof,stencilwidth,0,0,0,&(da_nodes));
 	CHKERRQ(ierr);
 
+	// Initialize
+        DMSetFromOptions(da_nodes);
+        DMSetUp(da_nodes);
+	
 	// Set the coordinates
 	ierr = DMDASetUniformCoordinates(da_nodes, xmin,xmax, ymin,ymax, zmin,zmax);
 	CHKERRQ(ierr);
@@ -228,6 +232,10 @@ PetscErrorCode TopOpt::SetUpMESH(){
 	ierr = DMDACreate3d(PETSC_COMM_WORLD,bx,by,bz,stype,nx-1,ny-1,nz-1,md,nd,pd,
 			1,conn,Lx,Ly,Lz,&(da_elem));
 	CHKERRQ(ierr);
+	
+	// Initialize
+        DMSetFromOptions(da_elem);
+        DMSetUp(da_elem);
 	
 	// Set element center coordinates
 	ierr = DMDASetUniformCoordinates(da_elem , xmin+dx/2.0,xmax-dx/2.0, ymin+dy/2.0,ymax-dy/2.0, zmin+dz/2.0,zmax-dz/2.0);
