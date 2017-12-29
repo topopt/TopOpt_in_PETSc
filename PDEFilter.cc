@@ -325,7 +325,7 @@ PetscErrorCode PDEFilt::SetUpSolver()
 		PCMGSetLevels(pc,nlvls,NULL);
 		PCMGSetType(pc,PC_MG_MULTIPLICATIVE); // Default
 		PCMGSetCycleType(pc,PC_MG_CYCLE_V);
-		PCMGSetGalerkin(pc,PETSC_TRUE);
+		PCMGSetGalerkin(pc,PC_MG_GALERKIN_BOTH);
 		for (PetscInt k=1; k<nlvls; k++) {
 			DMCreateInterpolation(da_list[k-1],da_list[k],&R,NULL);
 			PCMGSetInterpolation(pc,k,R);
