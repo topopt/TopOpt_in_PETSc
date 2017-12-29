@@ -194,7 +194,9 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 		// Create the element grid:
 		DMDACreate3d(PETSC_COMM_WORLD,bx,by,bz,stype,M-1,N-1,P-1,md,nd,pd,
 				1,ElemConn,Lx,Ly,Lz,&da_elem);
-
+		// Initialize
+                DMSetFromOptions(da_elem);
+                DMSetUp(da_elem);
 
 		// Set the coordinates: from 0+dx/2 to xmax-dx/2 and so on
 		PetscScalar xmax = (M-1)*dx;
