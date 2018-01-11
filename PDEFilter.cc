@@ -86,6 +86,11 @@ PDEFilt::PDEFilt(TopOpt *opt)
 	// Create the nodal mesh
 	DMDACreate3d(PETSC_COMM_WORLD,bx,by,bz,stype,nn[0],nn[1],nn[2],PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,
 			numnodaldof,stencilwidth,0,0,0,&(da_nodal));
+	// Initialize
+  	DMSetFromOptions(da_nodal);
+  	DMSetUp(da_nodal);
+
+	
 	// Set the coordinates
 	DMDASetUniformCoordinates(da_nodal, xc[0],xc[1], xc[2],xc[3], xc[4],xc[5]);
 	// Set the element type to Q1: Otherwise calls to GetElements will change to P1 !
@@ -121,6 +126,9 @@ PDEFilt::PDEFilt(TopOpt *opt)
 	// Create the element grid:
 	DMDACreate3d(PETSC_COMM_WORLD,bx,by,bz,stype,nn[0]-1,nn[1]-1,nn[2]-1,md,nd,pd,
 			1,overlap,Lx,Ly,Lz,&(da_element));
+	// Initialize
+	DMSetFromOptions(da_element);
+        DMSetUp(da_element);
 
 
 	delete [] Lx;
