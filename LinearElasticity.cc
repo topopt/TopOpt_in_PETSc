@@ -794,8 +794,8 @@ PetscInt LinearElasticity::Hex8Isoparametric(PetscScalar *X, PetscScalar *Y, Pet
 	PetscScalar W[2] = {1.0, 1.0};
 	// If reduced integration only use one GP
 	if (redInt){
-		GP[1] = 0.0;
-		W[1] = 2.0;
+		GP[0] = 0.0;
+		W[0] = 2.0;
 	}
 	// Matrices that help when we gather the strain-displacement matrix:
 	PetscScalar alpha1[6][3]; PetscScalar alpha2[6][3]; PetscScalar alpha3[6][3];
