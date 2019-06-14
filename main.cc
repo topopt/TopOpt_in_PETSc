@@ -92,7 +92,7 @@ int main(int argc, char *argv[]){
 		}
 
 		// Dump data needed for restarting code at termination
-		if (itr%3==0)	{
+		if (itr%10==0)	{
 			opt->WriteRestartFiles(&itr, mma);
 			physics->WriteRestartFiles();
 		}
