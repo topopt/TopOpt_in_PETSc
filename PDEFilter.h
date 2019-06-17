@@ -5,7 +5,8 @@
 
 /* -----------------------------------------------------------------------------
 Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013 
-Copyright (C) 2013-2014,
+Updated: June 2019, Niels Aage
+Copyright (C) 2013-2019,
 
 This PDEFilter implementation is licensed under Version 2.1 of the GNU
 Lesser General Public License.  
@@ -32,7 +33,7 @@ class PDEFilt
 
 	public:
 
-	PDEFilt(TopOpt *opt);
+	PDEFilt(DM da_nodes, PetscScalar rmin);
 	~PDEFilt();
 
 	PetscErrorCode FilterProject(Vec XX, Vec F);

@@ -3,6 +3,8 @@
 
 /*
  Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013
+ Updated: June 2019, Niels Aage
+ Copyright (C) 2013-2019,
 
  Disclaimer:                                                              
  The authors reserves all rights but does not guaranty that the code is   
@@ -35,10 +37,10 @@ TopOpt::~TopOpt(){
   
     // Delete vectors
     if (x!=NULL){ VecDestroy(&x); }
+    if (xTilde!=NULL){ VecDestroy(&xTilde); }
+    if (xPhys!=NULL){ VecDestroy(&xPhys); }
     if (dfdx!=NULL){ VecDestroy(&dfdx); }
     if (dgdx!=NULL){ VecDestroyVecs(m,&dgdx); }
-    // Densities
-    if (xPhys!=NULL){ VecDestroy(&xPhys); }
     if (xold!=NULL){ VecDestroy(&xold); }
     if (xmin!=NULL){ VecDestroy(&xmin); }
     if (xmax!=NULL){ VecDestroy(&xmax); }
@@ -82,12 +84,18 @@ PetscErrorCode TopOpt::SetUp(){
         penal = 3.0;
         Emin = 1.0e-9;
         Emax = 1.0;
-        filter = 0; // 0=sens,1=dens,2=PDE - other val == no filtering
-        m = 1; // volume constraint
+        filter = 1; // 0=sens,1=dens,2=PDE - other val == no filtering
+        m = 1; // Constraints
         Xmin = 0.0;
         Xmax = 1.0;
         movlim = 0.2;
 	restart = PETSC_TRUE;
+        
+        // Projection filter 
+        projectionFilter = PETSC_TRUE; //FALSE;
+        beta = 0.1;
+        betaFinal = 48;
+        eta = 0.0;
 	
 	ierr = SetUpMESH(); CHKERRQ(ierr);
 
@@ -115,7 +123,7 @@ PetscErrorCode TopOpt::SetUpMESH(){
 	PetscOptionsGetReal(NULL,NULL,"-zcmin",&(xc[4]),&flg);
 	PetscOptionsGetReal(NULL,NULL,"-zcmax",&(xc[5]),&flg);
    PetscOptionsGetReal(NULL,NULL,"-penal",&penal,&flg);
-	PetscOptionsGetInt(NULL,NULL,"-nlvls",&nlvls,&flg);
+	PetscOptionsGetInt(NULL,NULL,"-nlvls",&nlvls,&flg); // NEEDS THIS TO CHECK IF MESH IS OK BEFORE PROCEEDING !!!!
 
 	
 	// Write parameters for the physics _ OWNED BY TOPOPT
@@ -166,8 +174,8 @@ PetscErrorCode TopOpt::SetUpMESH(){
 	PetscInt ny = nxyz[1];
 	PetscInt nz = nxyz[2];
 
-	// number of nodal dofs
-	PetscInt numnodaldof = 3;
+	// number of nodal dofs: Nodal design variable - NOT REALLY NEEDED 
+	PetscInt numnodaldof = 1;
 
 	// Stencil width: each node connects to a box around it - linear elements
 	PetscInt stencilwidth = 1;
@@ -272,12 +280,20 @@ PetscErrorCode TopOpt::SetUpOPT(){
 	PetscOptionsGetReal(NULL,NULL,"-Xmin",&Xmin,&flg);
         PetscOptionsGetReal(NULL,NULL,"-Xmax",&Xmax,&flg);
 	PetscOptionsGetReal(NULL,NULL,"-movlim",&movlim,&flg);
+        PetscOptionsGetBool(NULL,NULL,"-projectionFilter",&projectionFilter,&flg);
+        PetscOptionsGetReal(NULL,NULL,"-beta",&beta,&flg);
+        PetscOptionsGetReal(NULL,NULL,"-betaFinal",&betaFinal,&flg);
+        PetscOptionsGetReal(NULL,NULL,"-eta",&eta,&flg);
         
 	PetscPrintf(PETSC_COMM_WORLD,"################### Optimization settings ####################\n");
 	PetscPrintf(PETSC_COMM_WORLD,"# Problem size: n= %i, m= %i\n",n,m);
 	PetscPrintf(PETSC_COMM_WORLD,"# -filter: %i  (0=sens., 1=dens, 2=PDE)\n",filter);
 	PetscPrintf(PETSC_COMM_WORLD,"# -rmin: %f\n",rmin);
-	PetscPrintf(PETSC_COMM_WORLD,"# -volfrac: %f\n",volfrac);
+        PetscPrintf(PETSC_COMM_WORLD,"# -projectionFilter: %i  (0/1)\n",projectionFilter);
+        PetscPrintf(PETSC_COMM_WORLD,"# -beta: %f\n",beta);
+	PetscPrintf(PETSC_COMM_WORLD,"# -betaFinal: %f\n",betaFinal);
+        PetscPrintf(PETSC_COMM_WORLD,"# -eta: %f\n",eta);
+        PetscPrintf(PETSC_COMM_WORLD,"# -volfrac: %f\n",volfrac);
         PetscPrintf(PETSC_COMM_WORLD,"# -penal: %f\n",penal);
 	PetscPrintf(PETSC_COMM_WORLD,"# -Emin/-Emax: %e - %e \n",Emin,Emax);
 	PetscPrintf(PETSC_COMM_WORLD,"# -maxItr: %i\n",maxItr);
@@ -292,9 +308,12 @@ PetscErrorCode TopOpt::SetUpOPT(){
 	
 	// Allocate the optimization vectors
 	ierr = VecDuplicate(xPhys,&x); CHKERRQ(ierr);
-	VecSet(x,volfrac); // Initialize to volfrac !
-	VecSet(xPhys,volfrac); // Initialize to volfrac !
-  
+        ierr = VecDuplicate(xPhys,&xTilde); CHKERRQ(ierr);
+
+        VecSet(x,volfrac); // Initialize to volfrac !
+	VecSet(xTilde,volfrac); // Initialize to volfrac !
+  	VecSet(xPhys,volfrac); // Initialize to volfrac !
+
 	// Sensitivity vectors
 	ierr = VecDuplicate(x,&dfdx); CHKERRQ(ierr);
 	ierr = VecDuplicateVecs(x,m, &dgdx); CHKERRQ(ierr);
@@ -304,7 +323,9 @@ PetscErrorCode TopOpt::SetUpOPT(){
 	VecDuplicate(x,&xmax);
 	VecDuplicate(x,&xold);	
 	VecSet(xold,volfrac);
-  
+
+        
+        
   	return(ierr);
 }
 

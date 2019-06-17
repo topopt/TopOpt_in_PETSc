@@ -3,6 +3,10 @@
 
 #include <petsc.h>
 
+
+/* 
+Copyright (C) 2013-2019, Niels Aage
+*/
 class MMA{
 	public:
 

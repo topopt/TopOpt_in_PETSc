@@ -24,15 +24,19 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 -------------------------------------------------------------------------- */
 
 
-Filter::Filter(TopOpt *opt){
+Filter::Filter(DM da_nodes, Vec x, PetscInt filterT, PetscScalar Rin){
 	// Set all pointers to NULL
 	H=NULL;  
 	Hs=NULL;
 	da_elem=NULL;
 	pdef=NULL;
-
+        
+        // Get parameters
+        R = Rin;
+        filterType = filterT;
+        
 	// Call the setup method
-	SetUp(opt);
+	SetUp(da_nodes, x);
 }
 
 Filter::~Filter(){
@@ -41,28 +45,30 @@ Filter::~Filter(){
 	if (H!=NULL){ MatDestroy(&H); }
 	if (da_elem!=NULL){ DMDestroy(&da_elem); }
 	if (pdef!=NULL){delete pdef; }
+        if (dx!=NULL){ VecDestroy(&dx); }
+
 
 }
 
 // Filter design variables
-PetscErrorCode Filter::FilterProject(TopOpt *opt){
+PetscErrorCode Filter::FilterProject(Vec x, Vec xTilde, Vec xPhys, PetscBool projectionFilter, PetscScalar beta, PetscScalar eta){
 	PetscErrorCode ierr;
 
 	// Filter the design variables or copy to xPhys
 	// STANDARD FILTER
-	if (opt->filter == 1){
+	if (filterType == 1){
 		// Filter the densitities
-		ierr = MatMult(H,opt->x,opt->xPhys); CHKERRQ(ierr);
-		VecPointwiseDivide(opt->xPhys,opt->xPhys,Hs);
+		ierr = MatMult(H,x,xTilde); CHKERRQ(ierr);
+		VecPointwiseDivide(xTilde,xTilde,Hs);
 	}
 	// PDE FILTER
-	else if (opt->filter == 2 ){
-		ierr = pdef->FilterProject(opt->x, opt->xPhys); CHKERRQ(ierr);
+	else if (filterType == 2 ){
+		ierr = pdef->FilterProject(x, xTilde); CHKERRQ(ierr);
 		// Check for bound violation: simple, but cheap check!
 		PetscScalar *xp;
 		PetscInt locsiz;
-		VecGetArray(opt->xPhys,&xp);
-		VecGetLocalSize(opt->xPhys,&locsiz);
+		VecGetArray(xTilde,&xp);
+		VecGetLocalSize(xTilde,&locsiz);
 		for (PetscInt i=0;i<locsiz;i++){
 			if (xp[i] < 0.0){
 				if (PetscAbsReal(xp[i]) > 1.0e-4){
@@ -78,74 +84,207 @@ PetscErrorCode Filter::FilterProject(TopOpt *opt){
 			}
 
 		}
-		VecRestoreArray(opt->xPhys,&xp);
+		VecRestoreArray(xTilde,&xp);
 	}
 	// COPY IN CASE OF SENSITIVITY FILTER
-	else {	ierr = VecCopy(opt->x,opt->xPhys); CHKERRQ(ierr); }
+	else {	ierr = VecCopy(x,xTilde); CHKERRQ(ierr); }
 
+        // Check for projection
+	if (projectionFilter){
+            HeavisideFilter(xPhys,xTilde,beta,eta);   
+        }
+        else {
+            VecCopy(xTilde,xPhys);
+        }
+	
 	return ierr;
 }
 
+
+
+
 // Filter the sensitivities
-PetscErrorCode Filter::Gradients(TopOpt *opt){
+PetscErrorCode Filter::Gradients(Vec x, Vec xTilde, Vec dfdx, PetscInt m, Vec *dgdx, PetscBool projectionFilter, PetscScalar beta, PetscScalar eta){
 
 	PetscErrorCode ierr;
+	// Cheinrule for projection filtering
+	if (projectionFilter){
+
+		// Get correction 
+		ChainruleHeavisideFilter(dx,xTilde,beta,eta);
+
+		PetscScalar *xt, *dg, *df, *dxp;
+		PetscInt locsiz;
+
+		ierr = VecGetLocalSize(xTilde,&locsiz); CHKERRQ(ierr);
+		ierr = VecGetArray(xTilde,&xt); CHKERRQ(ierr);
+		ierr = VecGetArray(dx,&dxp); CHKERRQ(ierr);
+		// Objective function
+		ierr = VecGetArray(dfdx,&df); CHKERRQ(ierr);
+		for (PetscInt j=0; j<locsiz; j++){
+			df[j] = df[j]*dxp[j];
+		}
+		ierr = VecRestoreArray(dfdx,&df); CHKERRQ(ierr);
+		// Run through all constraints
+		for (PetscInt i=0; i<m; i++){
+			ierr = VecGetArray(dgdx[i],&dg); CHKERRQ(ierr);
+			// The eta item corresponding to the correct realization        
+			for (PetscInt j=0; j<locsiz; j++){
+				dg[j] = dg[j]*dxp[j];
+			}
+			ierr = VecRestoreArray(dgdx[i],&dg); CHKERRQ(ierr);
+		}
+		ierr = VecRestoreArray(dx,&dxp); CHKERRQ(ierr);
+		ierr = VecRestoreArray(dgdx[0],&dg); CHKERRQ(ierr);
+		ierr = VecRestoreArray(xTilde,&xt); CHKERRQ(ierr);
+	}
+        
 	// Chainrule/Filter for the sensitivities
-	if (opt->filter == 0)
+	if (filterType == 0)
 		// Filter the sensitivities, df,dg
 	{
 		Vec xtmp;
-		ierr = VecDuplicate(opt->x,&xtmp);  CHKERRQ(ierr);
-		VecPointwiseMult(xtmp,opt->dfdx,opt->x);
-		MatMult(H,xtmp,opt->dfdx);
-		VecPointwiseDivide(xtmp,opt->dfdx,Hs);
-		VecPointwiseDivide(opt->dfdx,xtmp,opt->x);
+		ierr = VecDuplicate(xTilde,&xtmp);  CHKERRQ(ierr);
+		VecPointwiseMult(xtmp,dfdx,x);
+		MatMult(H,xtmp,dfdx);
+		VecPointwiseDivide(xtmp,dfdx,Hs);
+		VecPointwiseDivide(dfdx,xtmp,x);
 		VecDestroy(&xtmp);
 	}
-	else if (opt->filter == 1) {
+	else if (filterType == 1) {
 		// Filter the densities, df,dg: STANDARD FILTER
 		Vec xtmp;
-		ierr = VecDuplicate(opt->x,&xtmp);  CHKERRQ(ierr);
+		ierr = VecDuplicate(x,&xtmp);  CHKERRQ(ierr);
 		// dfdx
-		VecPointwiseDivide(xtmp,opt->dfdx,Hs);
-		MatMult(H,xtmp,opt->dfdx);
+		VecPointwiseDivide(xtmp,dfdx,Hs);
+		MatMult(H,xtmp,dfdx);
 		// dgdx
-		VecPointwiseDivide(xtmp,opt->dgdx[0],Hs);
-		MatMult(H,xtmp,opt->dgdx[0]);
+                for (PetscInt i=0; i<m; i++){
+                    VecPointwiseDivide(xtmp,dgdx[i],Hs);
+                    MatMult(H,xtmp,dgdx[i]);
+                }
 		// tidy up
 		VecDestroy(&xtmp);
 	}
-	else if (opt->filter == 2){
+	else if (filterType == 2){
 		// Filter the densities, df,dg: PDE FILTER  
-		ierr = pdef->Gradients(opt->dfdx,opt->dfdx); CHKERRQ(ierr);
-		ierr = pdef->Gradients(opt->dgdx[0],opt->dgdx[0]); CHKERRQ(ierr);
+		ierr = pdef->Gradients(dfdx,dfdx); CHKERRQ(ierr);
+		for (PetscInt i=0; i<m; i++){
+                ierr = pdef->Gradients(dgdx[i],dgdx[i]); CHKERRQ(ierr);
+                }
 	}
 
 	return ierr;
 }
 
+PetscScalar Filter::GetMND(Vec x){
+ 
+    PetscScalar mnd, mndloc = 0.0;
+    
+    
+    PetscScalar *xv;
+    PetscInt nelloc, nelglob;
+       VecGetLocalSize(x,&nelloc);
+        VecGetSize(x,&nelglob);
+        
+        // Compute power sum
+        VecGetArray(x,&xv);
+        for (PetscInt i=0;i<nelloc;i++){
+            mndloc += 4*xv[i]*(1.0 - xv[i]);
+        }
+        // Collect from procs
+        MPI_Allreduce(&mndloc,&mnd,1,MPIU_SCALAR,MPI_SUM,PETSC_COMM_WORLD);		
+        mnd = mnd / ((PetscScalar)nelglob);
+    
+    return mnd;
+}
 
-PetscErrorCode Filter::SetUp(TopOpt *opt){
+
+PetscErrorCode Filter::HeavisideFilter(Vec y, Vec x, PetscReal beta, PetscReal eta){
+        PetscErrorCode ierr;
+        
+        PetscScalar *yp, *xp;
+        PetscInt nelloc;
+        VecGetLocalSize(x,&nelloc);
+        ierr = VecGetArray(x,&xp); CHKERRQ(ierr);
+        ierr = VecGetArray(y,&yp); CHKERRQ(ierr);
+        
+        for (PetscInt i=0; i<nelloc; i++){
+                yp[i] = SmoothProjection(xp[i], beta, eta);
+        }
+        ierr = VecRestoreArray(x,&xp); CHKERRQ(ierr);
+        ierr = VecRestoreArray(y,&yp); CHKERRQ(ierr);
+
+    
+}
+
+PetscErrorCode Filter::ChainruleHeavisideFilter(Vec y, Vec x, PetscReal beta, PetscReal eta){
+        PetscErrorCode ierr;
+        
+        PetscScalar *yp, *xp;
+        PetscInt nelloc;
+        VecGetLocalSize(x,&nelloc);
+        ierr = VecGetArray(x,&xp); CHKERRQ(ierr);
+        ierr = VecGetArray(y,&yp); CHKERRQ(ierr);
+        
+        for (PetscInt i=0; i<nelloc; i++){
+                yp[i] = ChainruleSmoothProjection(xp[i], beta, eta);
+        }
+        ierr = VecRestoreArray(x,&xp); CHKERRQ(ierr);
+        ierr = VecRestoreArray(y,&yp); CHKERRQ(ierr);
+
+    
+}
+
+// Continuation function
+PetscBool Filter::IncreaseBeta(PetscReal *beta, PetscReal betaFinal, PetscScalar gx, PetscInt itr, PetscReal ch){
+
+        PetscBool changeBeta = PETSC_FALSE;
+
+        // Increase beta when fitting
+        if ( (ch < 0.01 || itr%10==0) && beta[0] < betaFinal && gx < 0.000001) {
+                changeBeta = PETSC_TRUE;
+                if (beta[0]<7) {
+                        beta[0] = beta[0]+1;
+                }
+                else {
+                        beta[0] = beta[0]*1.2;
+                }
+                if (beta[0] > betaFinal){
+                        beta[0]=betaFinal;
+                        changeBeta = PETSC_FALSE;
+                }
+                PetscPrintf(PETSC_COMM_WORLD, "Beta has been increased to: %f\n", beta[0]);
+        }
+
+        return changeBeta;
+}
+
+
+PetscErrorCode Filter::SetUp(DM da_nodes, Vec x){
 
 	PetscErrorCode ierr;
-
-	if (opt->filter==0 || opt->filter==1){
+    
+        VecDuplicate(x,&dx);
+        VecSet(dx,1.0);
+        
+	if (filterType==0 || filterType==1){
 
 		// Extract information from the nodal mesh
 		PetscInt M,N,P,md,nd,pd; 
 		DMBoundaryType bx, by, bz;
 		DMDAStencilType stype;
-		ierr = DMDAGetInfo(opt->da_nodes,NULL,&M,&N,&P,&md,&nd,&pd,NULL,NULL,&bx,&by,&bz,&stype); CHKERRQ(ierr);
+		ierr = DMDAGetInfo(da_nodes,NULL,&M,&N,&P,&md,&nd,&pd,NULL,NULL,&bx,&by,&bz,&stype); CHKERRQ(ierr);
 
 		// Find the element size
 		Vec lcoor;
-		DMGetCoordinatesLocal(opt->da_nodes,&lcoor);
+		DMGetCoordinatesLocal(da_nodes,&lcoor);
 		PetscScalar *lcoorp;
 		VecGetArray(lcoor,&lcoorp);
 
 		PetscInt nel, nen;
 		const PetscInt *necon;
-		DMDAGetElements_3D(opt->da_nodes,&nel,&nen,&necon);
+		DMDAGetElements_3D(da_nodes,&nel,&nen,&necon);
 
 		PetscScalar dx,dy,dz;
 		// Use the first element to compute the dx, dy, dz
@@ -153,11 +292,11 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 		dy = lcoorp[3*necon[0*nen + 2]+1]-lcoorp[3*necon[0*nen + 1]+1];
 		dz = lcoorp[3*necon[0*nen + 4]+2]-lcoorp[3*necon[0*nen + 0]+2];
 		VecRestoreArray(lcoor,&lcoorp);
-
+               
 		// Create the minimum element connectivity shit
 		PetscInt ElemConn;
 		// Check dx,dy,dz and find max conn for a given rmin
-		ElemConn = (PetscInt)PetscMax(ceil(opt->rmin/dx)-1,PetscMax(ceil(opt->rmin/dy)-1,ceil(opt->rmin/dz)-1));
+		ElemConn = (PetscInt)PetscMax(ceil(R/dx)-1,PetscMax(ceil(R/dy)-1,ceil(R/dz)-1));
 		ElemConn = PetscMin(ElemConn,PetscMin((M-1)/2,PetscMin((N-1)/2,(P-1)/2)));
 
 		// The following is needed due to roundoff errors 
@@ -166,7 +305,7 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 		ElemConn = tmp;
 
 		// Print to screen: mesh overlap!
-		PetscPrintf(PETSC_COMM_WORLD,"# Filter radius rmin = %f results in a stencil of %i elements \n",opt->rmin,ElemConn);
+		PetscPrintf(PETSC_COMM_WORLD,"# Filter radius rmin = %f results in a stencil of %i elements \n",R,ElemConn);
 
 		// Find the geometric partitioning of the nodal mesh, so the element mesh will coincide 
 		PetscInt *Lx=new PetscInt[md];
@@ -175,7 +314,7 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 
 		// get number of nodes for each partition
 		const PetscInt *LxCorrect, *LyCorrect, *LzCorrect;
-		DMDAGetOwnershipRanges(opt->da_nodes, &LxCorrect, &LyCorrect, &LzCorrect); 
+		DMDAGetOwnershipRanges(da_nodes, &LxCorrect, &LyCorrect, &LzCorrect); 
 
 		// subtract one from the lower left corner.
 		for (int i=0; i<md; i++){
@@ -247,9 +386,9 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 									dist = dist + PetscPowScalar(lcoorp[3*row+kk]-lcoorp[3*col+kk],2.0);
 								}
 								dist = PetscSqrtScalar(dist);
-								if (dist<opt->rmin){
+								if (dist<R){
 									// Longer distances should have less weight
-									dist = opt->rmin-dist;
+									dist = R-dist;
 									MatSetValuesLocal(H, 1, &row, 1, &col, &dist, INSERT_VALUES); 
 								}
 							}
@@ -275,9 +414,9 @@ PetscErrorCode Filter::SetUp(TopOpt *opt){
 		delete [] Lz;
 
 	} 
-	else if (opt->filter==2){
+	else if (filterType==2){
 		// ALLOCATE AND SETUP THE PDE FILTER CLASS
-		pdef = new PDEFilt(opt);
+		pdef = new PDEFilt(da_nodes, R);
 	}
 
 	return ierr;

@@ -10,16 +10,24 @@
 */
 
 
-LinearElasticity::LinearElasticity(TopOpt *opt){
+LinearElasticity::LinearElasticity(DM da_nodes){
 	// Set pointers to null
 	K = NULL;
 	U = NULL;
 	RHS = NULL;
 	N = NULL;
 	ksp = NULL;
+        da_nodal;
 
+        // Parameters - to be changed on read of variables
+        nu=0.3;
+        nlvls = 4;
+        PetscBool flg;
+	PetscOptionsGetInt(NULL,NULL,"-nlvls",&nlvls,&flg);
+        
+        
 	// Setup sitffness matrix, load vector and bcs (Dirichlet) for the design problem
-	SetUpLoadAndBC(opt);
+	SetUpLoadAndBC(da_nodes);
 
 }
 
@@ -31,25 +39,87 @@ LinearElasticity::~LinearElasticity(){
 	MatDestroy(&(K));
 	KSPDestroy(&(ksp));
 
+        if (da_nodal!=NULL){ DMDestroy(&(da_nodal)); }
+
 }
 
-PetscErrorCode LinearElasticity::SetUpLoadAndBC(TopOpt *opt){
+PetscErrorCode LinearElasticity::SetUpLoadAndBC(DM da_nodes){
 
 	PetscErrorCode ierr;
+        // Extract information from input DM and create one for the linear elasticity
+        // number of nodal dofs: (u,v,w)
+	PetscInt numnodaldof = 3;
 
+	// Stencil width: each node connects to a box around it - linear elements
+	PetscInt stencilwidth = 1;
+
+	PetscScalar dx,dy,dz;
+	DMBoundaryType bx, by, bz;
+	DMDAStencilType stype;
+	{
+		// Extract information from the nodal mesh
+		PetscInt M,N,P,md,nd,pd; 
+		DMDAGetInfo(da_nodes,NULL,&M,&N,&P,&md,&nd,&pd,NULL,NULL,&bx,&by,&bz,&stype); 
+
+		// Find the element size
+		Vec lcoor;
+		DMGetCoordinatesLocal(da_nodes,&lcoor);
+		PetscScalar *lcoorp;
+		VecGetArray(lcoor,&lcoorp);
+
+		PetscInt nel, nen;
+		const PetscInt *necon;
+		DMDAGetElements_3D(da_nodes,&nel,&nen,&necon);
+
+		// Use the first element to compute the dx, dy, dz
+		dx = lcoorp[3*necon[0*nen + 1]+0]-lcoorp[3*necon[0*nen + 0]+0];
+		dy = lcoorp[3*necon[0*nen + 2]+1]-lcoorp[3*necon[0*nen + 1]+1];
+		dz = lcoorp[3*necon[0*nen + 4]+2]-lcoorp[3*necon[0*nen + 0]+2];
+		VecRestoreArray(lcoor,&lcoorp);
+                
+		nn[0]=M;
+		nn[1]=N;
+		nn[2]=P;
+
+		ne[0]=nn[0]-1; 
+		ne[1]=nn[1]-1; 
+		ne[2]=nn[2]-1; 
+
+
+		xc[0]=0.0;
+		xc[1]=ne[0]*M;
+		xc[2]=0.0;
+		xc[3]=ne[1]*N;
+		xc[4]=0.0;
+		xc[5]=ne[2]*P;
+
+	}
+
+	// Create the nodal mesh
+	DMDACreate3d(PETSC_COMM_WORLD,bx,by,bz,stype,nn[0],nn[1],nn[2],PETSC_DECIDE,PETSC_DECIDE,PETSC_DECIDE,
+			numnodaldof,stencilwidth,0,0,0,&(da_nodal));
+	// Initialize
+  	DMSetFromOptions(da_nodal);
+  	DMSetUp(da_nodal);
+
+	
+	// Set the coordinates
+	DMDASetUniformCoordinates(da_nodal, xc[0],xc[1], xc[2],xc[3], xc[4],xc[5]);
+	// Set the element type to Q1: Otherwise calls to GetElements will change to P1 !
+	// STILL DOESN*T WORK !!!!
+	DMDASetElementType(da_nodal, DMDA_ELEMENT_Q1);
+        
+        
 	// Allocate matrix and the RHS and Solution vector and Dirichlet vector
-	ierr = DMCreateMatrix(opt->da_nodes,&(K)); CHKERRQ(ierr);
-	ierr = DMCreateGlobalVector(opt->da_nodes,&(U)); CHKERRQ(ierr);
+	ierr = DMCreateMatrix(da_nodal,&(K)); CHKERRQ(ierr);
+	ierr = DMCreateGlobalVector(da_nodal,&(U)); CHKERRQ(ierr);
 	VecDuplicate(U,&(RHS));
 	VecDuplicate(U,&(N));
 
 	// Set the local stiffness matrix
-	PetscScalar a = opt->dx; // x-side length
-	PetscScalar b = opt->dy; // y-side length
-	PetscScalar c = opt->dz; // z-side length 
-	PetscScalar X[8] = {0.0, a, a, 0.0, 0.0, a, a, 0.0};
-	PetscScalar Y[8] = {0.0, 0.0, b, b, 0.0, 0.0, b, b};
-	PetscScalar Z[8] = {0.0, 0.0, 0.0, 0.0, c, c, c, c};
+	PetscScalar X[8] = {0.0, dx, dx, 0.0, 0.0, dx, dx, 0.0};
+	PetscScalar Y[8] = {0.0, 0.0, dy, dy, 0.0, 0.0, dy, dy};
+	PetscScalar Z[8] = {0.0, 0.0, 0.0, 0.0, dz, dz, dz, dz};
 
 	// Compute the element stiffnes matrix - constant due to structured grid
 	Hex8Isoparametric(X, Y, Z, 0.3, false, KE); 
@@ -63,7 +133,7 @@ PetscErrorCode LinearElasticity::SetUpLoadAndBC(TopOpt *opt){
 	PetscScalar *lcoorp;
 
 	// Get local coordinates in local node numbering including ghosts       
-	ierr = DMGetCoordinatesLocal(opt->da_nodes,&lcoor); CHKERRQ(ierr);
+	ierr = DMGetCoordinatesLocal(da_nodal,&lcoor); CHKERRQ(ierr);
 	VecGetArray(lcoor,&lcoorp);
 
 	// Get local dof number
@@ -71,35 +141,36 @@ PetscErrorCode LinearElasticity::SetUpLoadAndBC(TopOpt *opt){
 	VecGetSize(lcoor,&nn); 
 	
 	// Compute epsilon parameter for finding points in space:
-	PetscScalar epsi = PetscMin(a*0.05,PetscMin(b*0.05,c*0.05));
+	PetscScalar epsi = PetscMin(dx*0.05,PetscMin(dy*0.05,dz*0.05));
 
 	// Set the values:
 	// In this case: N = the wall at x=xmin is fully clamped
 	//               RHS(z) = sin(pi*y/Ly) at x=xmax,z=zmin;
 	// OR
 	//               RHS(z) = -0.1 at x=xmax,z=zmin;
+        PetscScalar LoadIntensity = -0.001;
 	for (PetscInt i=0;i<nn;i++){
 		// Make a wall with all dofs clamped
-		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[0]) < epsi){
+		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-xc[0]) < epsi){
 			VecSetValueLocal(N,i,0.0,INSERT_VALUES);
 			VecSetValueLocal(N,++i,0.0,INSERT_VALUES);
 			VecSetValueLocal(N,++i,0.0,INSERT_VALUES);
 		}
 		// Line load
-		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[1]) < epsi && 
-				  PetscAbsScalar(lcoorp[i+2]-opt->xc[4]) < epsi){
-			VecSetValueLocal(RHS,i+2,-0.1,INSERT_VALUES);
+		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-xc[1]) < epsi && 
+				  PetscAbsScalar(lcoorp[i+2]-xc[4]) < epsi){
+			VecSetValueLocal(RHS,i+2,LoadIntensity,INSERT_VALUES);
 		}
 		// Adjust the corners
-		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[1]) < epsi && 
-				  PetscAbsScalar(lcoorp[i+1]-opt->xc[2]) < epsi && 
-				  PetscAbsScalar(lcoorp[i+2]-opt->xc[4]) < epsi ){
-			VecSetValueLocal(RHS,i+2,-0.05,INSERT_VALUES);
+		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-xc[1]) < epsi && 
+				  PetscAbsScalar(lcoorp[i+1]-xc[2]) < epsi && 
+				  PetscAbsScalar(lcoorp[i+2]-xc[4]) < epsi ){
+			VecSetValueLocal(RHS,i+2,LoadIntensity/2.0,INSERT_VALUES);
 		}
-		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-opt->xc[1]) < epsi && 
-				  PetscAbsScalar(lcoorp[i+1]-opt->xc[3]) < epsi && 
-   				  PetscAbsScalar(lcoorp[i+2]-opt->xc[4]) < epsi){
-			VecSetValueLocal(RHS,i+2,-0.05,INSERT_VALUES);
+		if (i % 3 == 0 && PetscAbsScalar(lcoorp[i]-xc[1]) < epsi && 
+				  PetscAbsScalar(lcoorp[i+1]-xc[3]) < epsi && 
+   				  PetscAbsScalar(lcoorp[i+2]-xc[4]) < epsi){
+			VecSetValueLocal(RHS,i+2,LoadIntensity/2.0,INSERT_VALUES);
 		}
 	}
 
@@ -113,7 +184,7 @@ PetscErrorCode LinearElasticity::SetUpLoadAndBC(TopOpt *opt){
 
 }
 
-PetscErrorCode LinearElasticity::SolveState(TopOpt *opt){
+PetscErrorCode LinearElasticity::SolveState(Vec xPhys, PetscScalar Emin, PetscScalar Emax, PetscScalar penal){
 
 	PetscErrorCode ierr;
 
@@ -121,12 +192,12 @@ PetscErrorCode LinearElasticity::SolveState(TopOpt *opt){
 	t1 = MPI_Wtime();
 
 	// Assemble the stiffness matrix
-	ierr = AssembleStiffnessMatrix(opt);
+	ierr = AssembleStiffnessMatrix(xPhys, Emin, Emax, penal);
 	CHKERRQ(ierr);
 
 	// Setup the solver
 	if (ksp==NULL){
-		ierr = SetUpSolver(opt);
+		ierr = SetUpSolver();
 		CHKERRQ(ierr);
 	}
 	else {
@@ -134,7 +205,6 @@ PetscErrorCode LinearElasticity::SolveState(TopOpt *opt){
 		CHKERRQ(ierr);
 		KSPSetUp(ksp); 
 	}
-
 
 	// Solve
 	ierr = KSPSolve(ksp,RHS,U); CHKERRQ(ierr);
@@ -156,28 +226,28 @@ PetscErrorCode LinearElasticity::SolveState(TopOpt *opt){
 	return ierr;
 }
 
-PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
+PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(PetscScalar *fx, PetscScalar *gx,Vec xPhys, PetscScalar Emin, PetscScalar Emax, PetscScalar penal, PetscScalar volfrac) {
 
 	// Error code
 	PetscErrorCode ierr;
 
 	// Solve state eqs 
-	ierr = SolveState(opt); CHKERRQ(ierr); 
+	ierr = SolveState(xPhys, Emin, Emax, penal); CHKERRQ(ierr); 
 
 	// Get the FE mesh structure (from the nodal mesh)
 	PetscInt nel, nen;
 	const PetscInt *necon;
-	ierr = DMDAGetElements_3D(opt->da_nodes,&nel,&nen,&necon); CHKERRQ(ierr);
+	ierr = DMDAGetElements_3D(da_nodal,&nel,&nen,&necon); CHKERRQ(ierr);
 
 	// Get pointer to the densities
 	PetscScalar *xp;
-	VecGetArray(opt->xPhys,&xp);
+	VecGetArray(xPhys,&xp);
 
 	// Get Solution
 	Vec Uloc;
-	DMCreateLocalVector(opt->da_nodes,&Uloc);
-	DMGlobalToLocalBegin(opt->da_nodes,U,INSERT_VALUES,Uloc);
-	DMGlobalToLocalEnd(opt->da_nodes,U,INSERT_VALUES,Uloc);
+	DMCreateLocalVector(da_nodal,&Uloc);
+	DMGlobalToLocalBegin(da_nodal,U,INSERT_VALUES,Uloc);
+	DMGlobalToLocalEnd(da_nodal,U,INSERT_VALUES,Uloc);
 
 	// get pointer to local vector
 	PetscScalar *up;
@@ -186,7 +256,7 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
 	// Edof array
 	PetscInt edof[24];
 
-	opt->fx = 0.0;
+	fx[0] = 0.0;
 	// Loop over elements
 	for (PetscInt i=0;i<nel;i++){
 		// loop over element nodes
@@ -204,21 +274,23 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
 			}
 		}
 		// Add to objective
-		opt->fx += (opt->Emin + PetscPowScalar(xp[i],opt->penal)*(opt->Emax - opt->Emin))*uKu;
+		fx[0] += (Emin + PetscPowScalar(xp[i],penal)*(Emax - Emin))*uKu;
 	}
 
 	// Allreduce fx[0]
-	PetscScalar tmp=opt->fx;
-	opt->fx=0.0;
-	MPI_Allreduce(&tmp,&(opt->fx),1,MPIU_SCALAR,MPI_SUM,PETSC_COMM_WORLD);		
+	PetscScalar tmp=fx[0];
+	fx[0]=0.0;
+	MPI_Allreduce(&tmp,&(fx[0]),1,MPIU_SCALAR,MPI_SUM,PETSC_COMM_WORLD);		
 
 	// Compute volume constraint gx[0]
-	opt->gx[0]=0;
-	VecSum(opt->xPhys, &(opt->gx[0]));
-	opt->gx[0]=opt->gx[0]/(((PetscScalar)opt->n))-opt->volfrac;
+        PetscInt neltot;
+        VecGetSize(xPhys,&neltot);
+	gx[0]=0;
+	VecSum(xPhys, &(gx[0]));
+	gx[0]=gx[0]/(((PetscScalar)neltot))-volfrac;
 
 
-	VecRestoreArray(opt->xPhys,&xp);
+	VecRestoreArray(xPhys,&xp);
 	VecRestoreArray(Uloc,&up);
 	VecDestroy(&Uloc);
 
@@ -226,24 +298,24 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraints(TopOpt *opt) {
 
 }
 
-PetscErrorCode LinearElasticity::ComputeSensitivities(TopOpt *opt) {
+PetscErrorCode LinearElasticity::ComputeSensitivities(Vec dfdx, Vec dgdx, Vec xPhys, PetscScalar Emin, PetscScalar Emax, PetscScalar penal, PetscScalar volfrac) {
 
 	PetscErrorCode ierr;
 
 	// Get the FE mesh structure (from the nodal mesh)
 	PetscInt nel, nen;
 	const PetscInt *necon;
-	ierr = DMDAGetElements_3D(opt->da_nodes,&nel,&nen,&necon); CHKERRQ(ierr);
+	ierr = DMDAGetElements_3D(da_nodal,&nel,&nen,&necon); CHKERRQ(ierr);
 	
 	// Get pointer to the densities
 	PetscScalar *xp;
-	VecGetArray(opt->xPhys,&xp);
+	VecGetArray(xPhys,&xp);
 
 	// Get Solution
 	Vec Uloc;
-	DMCreateLocalVector(opt->da_nodes,&Uloc);
-	DMGlobalToLocalBegin(opt->da_nodes,U,INSERT_VALUES,Uloc);
-	DMGlobalToLocalEnd(opt->da_nodes,U,INSERT_VALUES,Uloc);
+	DMCreateLocalVector(da_nodal,&Uloc);
+	DMGlobalToLocalBegin(da_nodal,U,INSERT_VALUES,Uloc);
+	DMGlobalToLocalEnd(da_nodal,U,INSERT_VALUES,Uloc);
 
 	// get pointer to local vector
 	PetscScalar *up;
@@ -251,7 +323,7 @@ PetscErrorCode LinearElasticity::ComputeSensitivities(TopOpt *opt) {
 
 	// Get dfdx
 	PetscScalar *df;
-	VecGetArray(opt->dfdx,&df);
+	VecGetArray(dfdx,&df);
 
 	// Edof array
 	PetscInt edof[24];
@@ -273,42 +345,45 @@ PetscErrorCode LinearElasticity::ComputeSensitivities(TopOpt *opt) {
 			}
 		}
 		// Set the Senstivity
-		df[i]= -1.0 * opt->penal*PetscPowScalar(xp[i],opt->penal-1)*(opt->Emax - opt->Emin)*uKu;
+		df[i]= -1.0 * penal*PetscPowScalar(xp[i],penal-1)*(Emax - Emin)*uKu;
 	}
 	// Compute volume constraint gx[0]
-	VecSet(opt->dgdx[0],1.0/(((PetscScalar)opt->n)));
+        PetscInt neltot;
+        VecGetSize(xPhys,&neltot);
+	VecSet(dgdx,1.0/(((PetscScalar)neltot)));
 
-	VecRestoreArray(opt->xPhys,&xp);
+	VecRestoreArray(xPhys,&xp);
 	VecRestoreArray(Uloc,&up);
-	VecRestoreArray(opt->dfdx,&df);
+	VecRestoreArray(dfdx,&df);
 	VecDestroy(&Uloc);
 
 	return(ierr);  
 
 }
 
-PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt *opt) {
+
+PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(PetscScalar *fx, PetscScalar *gx, Vec dfdx, Vec dgdx, Vec xPhys, PetscScalar Emin, PetscScalar Emax, PetscScalar penal, PetscScalar volfrac) {
 	// Errorcode
 	PetscErrorCode ierr;
 
 	// Solve state eqs 
-	ierr = SolveState(opt); CHKERRQ(ierr); 
+	ierr = SolveState( xPhys, Emin, Emax, penal); CHKERRQ(ierr); 
 
 	// Get the FE mesh structure (from the nodal mesh)
 	PetscInt nel, nen;
 	const PetscInt *necon;
-	ierr = DMDAGetElements_3D(opt->da_nodes,&nel,&nen,&necon); CHKERRQ(ierr);
+	ierr = DMDAGetElements_3D(da_nodal,&nel,&nen,&necon); CHKERRQ(ierr);
 	//DMDAGetElements(da_nodes,&nel,&nen,&necon); // Still issue with elemtype change !
 
 	// Get pointer to the densities
 	PetscScalar *xp;
-	VecGetArray(opt->xPhys,&xp);
+	VecGetArray(xPhys,&xp);
 
 	// Get Solution
 	Vec Uloc;
-	DMCreateLocalVector(opt->da_nodes,&Uloc);
-	DMGlobalToLocalBegin(opt->da_nodes,U,INSERT_VALUES,Uloc);
-	DMGlobalToLocalEnd(opt->da_nodes,U,INSERT_VALUES,Uloc);
+	DMCreateLocalVector(da_nodal,&Uloc);
+	DMGlobalToLocalBegin(da_nodal,U,INSERT_VALUES,Uloc);
+	DMGlobalToLocalEnd(da_nodal,U,INSERT_VALUES,Uloc);
 
 	// get pointer to local vector
 	PetscScalar *up;
@@ -316,12 +391,12 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt
 
 	// Get dfdx
 	PetscScalar *df;
-	VecGetArray(opt->dfdx,&df);
+	VecGetArray(dfdx,&df);
 
 	// Edof array
 	PetscInt edof[24];
 
-	opt->fx = 0.0;
+	fx[0] = 0.0;
 	// Loop over elements
 	for (PetscInt i=0;i<nel;i++){
 		// loop over element nodes
@@ -339,25 +414,27 @@ PetscErrorCode LinearElasticity::ComputeObjectiveConstraintsSensitivities(TopOpt
 			}
 		}
 		// Add to objective
-		opt->fx += (opt->Emin + PetscPowScalar(xp[i],opt->penal)*(opt->Emax - opt->Emin))*uKu;
+		fx[0] += (Emin + PetscPowScalar(xp[i],penal)*(Emax - Emin))*uKu;
 		// Set the Senstivity
-		df[i]= -1.0 * opt->penal*PetscPowScalar(xp[i],opt->penal-1)*(opt->Emax - opt->Emin)*uKu;
+		df[i]= -1.0 * penal*PetscPowScalar(xp[i],penal-1)*(Emax - Emin)*uKu;
 	}
 
 	// Allreduce fx[0]
-	PetscScalar tmp=opt->fx;
-	opt->fx=0.0;
-	MPI_Allreduce(&tmp,&(opt->fx),1,MPIU_SCALAR,MPI_SUM,PETSC_COMM_WORLD);		
+	PetscScalar tmp=fx[0];
+	fx[0]=0.0;
+	MPI_Allreduce(&tmp,&(fx[0]),1,MPIU_SCALAR,MPI_SUM,PETSC_COMM_WORLD);		
 
 	// Compute volume constraint gx[0]
-	opt->gx[0]=0;
-	VecSum(opt->xPhys, &(opt->gx[0]));
-	opt->gx[0]=opt->gx[0]/(((PetscScalar)opt->n))-opt->volfrac;
-	VecSet(opt->dgdx[0],1.0/(((PetscScalar)opt->n)));
-
-	VecRestoreArray(opt->xPhys,&xp);
+        PetscInt neltot;
+        VecGetSize(xPhys,&neltot);
+	gx[0]=0;
+	VecSum(xPhys, &(gx[0]));
+	gx[0]=gx[0]/(((PetscScalar)neltot))-volfrac;
+	VecSet(dgdx,1.0/(((PetscScalar)neltot)));
+        
+	VecRestoreArray(xPhys,&xp);
 	VecRestoreArray(Uloc,&up);
-	VecRestoreArray(opt->dfdx,&df);
+	VecRestoreArray(dfdx,&df);
 	VecDestroy(&Uloc);
 
 	return(ierr);  
@@ -405,19 +482,19 @@ PetscErrorCode LinearElasticity::WriteRestartFiles(){
 //##################################################################
 //##################################################################
 
-PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(TopOpt *opt){
+PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(Vec xPhys, PetscScalar Emin, PetscScalar Emax, PetscScalar penal){
 
 	PetscErrorCode ierr;
 
 	// Get the FE mesh structure (from the nodal mesh)
 	PetscInt nel, nen;
 	const PetscInt *necon;
-	ierr = DMDAGetElements_3D(opt->da_nodes,&nel,&nen,&necon);
+	ierr = DMDAGetElements_3D(da_nodal,&nel,&nen,&necon);
 	CHKERRQ(ierr);
 
 	// Get pointer to the densities
 	PetscScalar *xp;
-	VecGetArray(opt->xPhys,&xp);
+	VecGetArray(xPhys,&xp);
 
 	// Zero the matrix
 	MatZeroEntries(K);	
@@ -436,7 +513,7 @@ PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(TopOpt *opt){
 			}
 		} 
 		// Use SIMP for stiffness interpolation
-		PetscScalar dens = opt->Emin + PetscPowScalar(xp[i],opt->penal)*(opt->Emax-opt->Emin);
+		PetscScalar dens = Emin + PetscPowScalar(xp[i],penal)*(Emax-Emin);
 		for (PetscInt k=0;k<24*24;k++){
 			ke[k]=KE[k]*dens;
 		}
@@ -462,13 +539,13 @@ PetscErrorCode LinearElasticity::AssembleStiffnessMatrix(TopOpt *opt){
 	VecPointwiseMult(RHS,RHS,N);
 
 	VecDestroy(&NI);
-	VecRestoreArray(opt->xPhys,&xp);
-	DMDARestoreElements(opt->da_nodes,&nel,&nen,&necon);
+	VecRestoreArray(xPhys,&xp);
+	DMDARestoreElements(da_nodal,&nel,&nen,&necon);
 
 	return ierr;
 }
 
-PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
+PetscErrorCode LinearElasticity::SetUpSolver(){
 
 	PetscErrorCode ierr;
 	
@@ -534,14 +611,14 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 	// The fine grid solver settings
 	PetscScalar rtol = 1.0e-5;
 	PetscScalar atol = 1.0e-50;
-	PetscScalar dtol = 1.0e3;
+	PetscScalar dtol = 1.0e5;
 	PetscInt restart = 100;
 	PetscInt maxitsGlobal = 200;
 
 	// Coarsegrid solver
 	PetscScalar coarse_rtol = 1.0e-8;
 	PetscScalar coarse_atol = 1.0e-50;
-	PetscScalar coarse_dtol = 1e3;
+	PetscScalar coarse_dtol = 1e5;
 	PetscInt coarse_maxits = 30;
 	PetscInt coarse_restart = 30;
 
@@ -586,39 +663,39 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 		DM  *da_list,*daclist;
 		Mat R;
 
-		PetscMalloc(sizeof(DM)*opt->nlvls,&da_list);
-		for (PetscInt k=0; k<opt->nlvls; k++) da_list[k] = NULL;
-		PetscMalloc(sizeof(DM)*opt->nlvls,&daclist);
-		for (PetscInt k=0; k<opt->nlvls; k++) daclist[k] = NULL;
+		PetscMalloc(sizeof(DM)*nlvls,&da_list);
+		for (PetscInt k=0; k<nlvls; k++) da_list[k] = NULL;
+		PetscMalloc(sizeof(DM)*nlvls,&daclist);
+		for (PetscInt k=0; k<nlvls; k++) daclist[k] = NULL;
 
 		// Set 0 to the finest level
-		daclist[0] = opt->da_nodes;
+		daclist[0] = da_nodal;
 
 		// Coordinates
-		PetscReal xmin=opt->xc[0], xmax=opt->xc[1], ymin=opt->xc[2], ymax=opt->xc[3], zmin=opt->xc[4], zmax=opt->xc[5];
+		PetscReal xmin=xc[0], xmax=xc[1], ymin=xc[2], ymax=xc[3], zmin=xc[4], zmax=xc[5];
 
 		// Set up the coarse meshes
-		DMCoarsenHierarchy(opt->da_nodes,opt->nlvls-1,&daclist[1]);
-		for (PetscInt k=0; k<opt->nlvls; k++) {
+		DMCoarsenHierarchy(da_nodal,nlvls-1,&daclist[1]);
+		for (PetscInt k=0; k<nlvls; k++) {
 			// NOTE: finest grid is nlevels - 1: PCMG MUST USE THIS ORDER ??? 
-			da_list[k] = daclist[opt->nlvls-1-k];
+			da_list[k] = daclist[nlvls-1-k];
 			// THIS SHOULD NOT BE NECESSARY
 			DMDASetUniformCoordinates(da_list[k],xmin,xmax,ymin,ymax,zmin,zmax);
 		}
 
 		// the PCMG specific options
-		PCMGSetLevels(pc,opt->nlvls,NULL);
+		PCMGSetLevels(pc,nlvls,NULL);
 		PCMGSetType(pc,PC_MG_MULTIPLICATIVE); // Default
 		ierr = PCMGSetCycleType(pc,PC_MG_CYCLE_V); CHKERRQ(ierr);
 		PCMGSetGalerkin(pc,PC_MG_GALERKIN_BOTH);
-		for (PetscInt k=1; k<opt->nlvls; k++) {
+		for (PetscInt k=1; k<nlvls; k++) {
 			DMCreateInterpolation(da_list[k-1],da_list[k],&R,NULL);
 			PCMGSetInterpolation(pc,k,R);
 			MatDestroy(&R);
 		}
 
 		// tidy up 
-		for (PetscInt k=1; k<opt->nlvls; k++) { // DO NOT DESTROY LEVEL 0
+		for (PetscInt k=1; k<nlvls; k++) { // DO NOT DESTROY LEVEL 0
 			DMDestroy(&daclist[k]);
 		}
 		PetscFree(da_list);
@@ -632,24 +709,24 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 			PCMGGetCoarseSolve(pc,&cksp);
 			// The solver
 			ierr = KSPSetType(cksp,KSPGMRES); // KSPCG, KSPFGMRES
-
 			ierr = KSPGMRESSetRestart(cksp,coarse_restart);
+			//ierr = KSPSetType(cksp,KSPCG);
 
 			ierr = KSPSetTolerances(cksp,coarse_rtol,coarse_atol,coarse_dtol,coarse_maxits);
 			// The preconditioner
 			PC cpc;
 			KSPGetPC(cksp,&cpc);
-			PCSetType(cpc,PCSOR); // PCSOR, PCSPAI (NEEDS TO BE COMPILED), PCJACOBI     
+			PCSetType(cpc,PCSOR); // PCGAMG, PCSOR, PCSPAI (NEEDS TO BE COMPILED), PCJACOBI     
 
 			// Set smoothers on all levels (except for coarse grid):
-			for (PetscInt k=1;k<opt->nlvls;k++){
+			for (PetscInt k=1;k<nlvls;k++){
 				KSP dksp;
 				PCMGGetSmoother(pc,k,&dksp);
 				PC dpc;
 				KSPGetPC(dksp,&dpc);
 				ierr = KSPSetType(dksp,KSPGMRES); // KSPCG, KSPGMRES, KSPCHEBYSHEV (VERY GOOD FOR SPD)
-
 				ierr = KSPGMRESSetRestart(dksp,smooth_sweeps);
+				//ierr = KSPSetType(dksp,KSPCHEBYSHEV);
 				ierr = KSPSetTolerances(dksp,PETSC_DEFAULT,PETSC_DEFAULT,PETSC_DEFAULT,smooth_sweeps); // NOTE in the above maxitr=restart;
 				PCSetType(dpc,PCSOR);// PCJACOBI, PCSOR for KSPCHEBYSHEV very good   
 			}
@@ -671,7 +748,7 @@ PetscErrorCode LinearElasticity::SetUpSolver(TopOpt *opt){
 	// Only if pcmg is used
 	if (pcmg_flag){
 		// Check the smoothers and coarse grid solver:
-		for (PetscInt k=0;k<opt->nlvls;k++){
+		for (PetscInt k=0;k<nlvls;k++){
 			KSP dksp;
 			PC dpc;
 			KSPType dksptype;

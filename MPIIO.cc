@@ -5,7 +5,8 @@
 
 /* -----------------------------------------------------------------------------
 Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013 
-Copyright (C) 2013-2014,
+ Updated: June 2019, Niels Aage
+ Copyright (C) 2013-2019,
 
 This MPIIO implementation is licensed under Version 2.1 of the GNU
 Lesser General Public License.  
@@ -145,7 +146,7 @@ MPIIO::~MPIIO(){
 }
 
 
-PetscErrorCode MPIIO::WriteVTK(DM da_nodes, Vec U, TopOpt *opt, PetscInt itr){
+PetscErrorCode MPIIO::WriteVTK(DM da_nodes, Vec U, Vec x, Vec xTilde, Vec xPhys, PetscInt itr){
   
   // Here we only have one "timestep" (no optimization)
 	unsigned long int timestep = itr;
@@ -176,19 +177,23 @@ PetscErrorCode MPIIO::WriteVTK(DM da_nodes, Vec U, TopOpt *opt, PetscInt itr){
 	ierr = VecRestoreArray(Ulocal, &UlocalPointer); CHKERRQ(ierr);
 
 	// CELL FIELD(S)
-	PetscScalar *xpp, *xp;
-	VecGetArray(opt->x,&xp);
-	VecGetArray(opt->xPhys,&xpp);
+	PetscScalar *xpp, *xp, *xt;
+	VecGetArray(x,&xp);
+	VecGetArray(xTilde,&xt);
+	VecGetArray(xPhys,&xpp);
+
 	for (unsigned long int i=0; i<nCellsMyrank[0]; i++){
 		// Density
-		workCellField[i] = float(xp[i]);
-		workCellField[i+nCellsMyrank[0]] = float(xpp[i]);
+		workCellField[i+0*nCellsMyrank[0]] = float(xp[i]);
+		workCellField[i+1*nCellsMyrank[0]] = float(xt[i]);
+		workCellField[i+2*nCellsMyrank[0]] = float(xpp[i]);
 		
 	}
 	writeCellFields(0, workCellField);
 	// Restore arrays
-	VecRestoreArray(opt->x,&xp);
-	VecRestoreArray(opt->xPhys,&xpp);
+	VecRestoreArray(x,&xp);
+	VecRestoreArray(xTilde,&xt);
+	VecRestoreArray(xPhys,&xpp);
 	
 
 	// clean up
@@ -214,7 +219,7 @@ void MPIIO::Allocate(std::string info, const int nDom, const int nPFields[],
 */ 
 {
 	// default name
-	std::string filename = "output.dat";
+	std::string filename = "output_00000.dat";
 	
 	// Check PETSc input for a work directory
 	char filenameChar[PETSC_MAX_PATH_LEN];

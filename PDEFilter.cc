@@ -4,7 +4,8 @@
 #include <petsc/private/dmdaimpl.h>
 /* -----------------------------------------------------------------------------
 Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013 
-Copyright (C) 2013-2014,
+ Updated: June 2019, Niels Aage
+ Copyright (C) 2013-2019,
 
 This PDEFilter implementation is licensed under Version 2.1 of the GNU
 Lesser General Public License.  
@@ -25,10 +26,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 -------------------------------------------------------------------------- */
 
 
-PDEFilt::PDEFilt(TopOpt *opt)
+PDEFilt::PDEFilt(DM da_nodes, PetscScalar rmin)
 {
 
-	R=opt->rmin/2.0/sqrt(3); // conversion factor for the PDEfilter
+	R=rmin/2.0/sqrt(3); // conversion factor for the PDEfilter
 
 	nlvls=3; // MG levels
 
@@ -44,17 +45,17 @@ PDEFilt::PDEFilt(TopOpt *opt)
 	{
 		// Extract information from the nodal mesh
 		PetscInt M,N,P,md,nd,pd; 
-		DMDAGetInfo(opt->da_nodes,NULL,&M,&N,&P,&md,&nd,&pd,NULL,NULL,&bx,&by,&bz,&stype); 
+		DMDAGetInfo(da_nodes,NULL,&M,&N,&P,&md,&nd,&pd,NULL,NULL,&bx,&by,&bz,&stype); 
 
 		// Find the element size
 		Vec lcoor;
-		DMGetCoordinatesLocal(opt->da_nodes,&lcoor);
+		DMGetCoordinatesLocal(da_nodes,&lcoor);
 		PetscScalar *lcoorp;
 		VecGetArray(lcoor,&lcoorp);
 
 		PetscInt nel, nen;
 		const PetscInt *necon;
-		DMDAGetElements_3D(opt->da_nodes,&nel,&nen,&necon);
+		DMDAGetElements_3D(da_nodes,&nel,&nen,&necon);
 
 		// Use the first element to compute the dx, dy, dz
 		dx = lcoorp[3*necon[0*nen + 1]+0]-lcoorp[3*necon[0*nen + 0]+0];

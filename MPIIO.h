@@ -4,14 +4,14 @@
 // Include necessary libraries
 #include <petsc.h>
 //#include <petsc-private/dmdaimpl.h>
+#include <petsc/private/dmdaimpl.h>
 #include <petscdmda.h>
 #include <string>
 #include <mpi.h>
-#include <TopOpt.h>
 
 /* -----------------------------------------------------------------------------
 Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013 
-Copyright (C) 2013-2014,
+Copyright (C) 2013-2019,
 
 This MPIIO implementation is licensed under Version 2.1 of the GNU
 Lesser General Public License.  
@@ -41,7 +41,7 @@ class MPIIO
 		~MPIIO();
 
 		// NOT CLEAN INTERFACE: REPLACE BY STD::PAIR OR SUCH !!!!!!
-		PetscErrorCode WriteVTK(DM da_nodes, Vec U, TopOpt *opt, PetscInt itr);
+		PetscErrorCode WriteVTK(DM da_nodes, Vec U, Vec x, Vec xTilde, Vec xPhys, PetscInt itr);
 		
 	private:
 		// -------------- METHODS -----------------------------------------

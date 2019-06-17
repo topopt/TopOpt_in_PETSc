@@ -12,6 +12,8 @@
 
 /*
  Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013
+ Updated: June 2019, Niels Aage
+Copyright (C) 2013-2019,
 
  Disclaimer:                                                              
  The authors reserves all rights but does not guaranty that the code is   
@@ -50,9 +52,12 @@ public:
 	PetscInt nxyz[3]; // Number of nodes in each direction
 	PetscInt nlvls; // Number of multigrid levels
 	PetscScalar nu; // Poisson's ratio
-	// Nodal mesh (contains physics)  
+	/* NOTE: two meshes are needed such the both 
+         * nodal and element mesh share the partitioning         
+         */
+	// Nodal mesh (basis for physics)  
 	DM da_nodes;
-	// element mesh (contains design)
+	// element mesh (basis for design)
 	DM da_elem;
 	
 	// Optimization parameters
@@ -70,12 +75,18 @@ public:
 	PetscScalar penal; // Penalization parameter
 	PetscScalar Emin, Emax; // Modified SIMP, max and min E
 	
-	PetscScalar rmin; // filter radius
 	
 	PetscInt maxItr; // Max iterations
+	
+	PetscScalar rmin; // filter radius
 	PetscInt filter; // Filter type
+	PetscBool projectionFilter; // Smooth heaviside projectionFilter
+	PetscReal beta; 
+        PetscReal betaFinal;
+        PetscReal eta; 
 	
 	Vec x; // Design variables
+	Vec xTilde; // Filtered field
 	Vec xPhys; // Physical variables (filtered x)
 	Vec dfdx; // Sensitivities of objective
 	Vec xmin, xmax; // Vectors with max and min values of x
