@@ -13,7 +13,7 @@ import subprocess
 import binascii
 
 #"Global constants":
-FIN = "output.dat"	#Std. input file format
+FIN = "output_00000.dat"	#Std. input file format
 FOUT = "output"	#Std. output file format
 
 def main(itr):
