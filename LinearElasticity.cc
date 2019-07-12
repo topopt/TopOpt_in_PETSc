@@ -87,11 +87,11 @@ PetscErrorCode LinearElasticity::SetUpLoadAndBC(DM da_nodes){
 
 
 		xc[0]=0.0;
-		xc[1]=ne[0]*M;
+		xc[1]=ne[0]*dx;
 		xc[2]=0.0;
-		xc[3]=ne[1]*N;
+		xc[3]=ne[1]*dy;
 		xc[4]=0.0;
-		xc[5]=ne[2]*P;
+		xc[5]=ne[2]*dz;
 
 	}
 
