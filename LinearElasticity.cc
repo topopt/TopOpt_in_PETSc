@@ -122,7 +122,7 @@ PetscErrorCode LinearElasticity::SetUpLoadAndBC(DM da_nodes){
 	PetscScalar Z[8] = {0.0, 0.0, 0.0, 0.0, dz, dz, dz, dz};
 
 	// Compute the element stiffnes matrix - constant due to structured grid
-	Hex8Isoparametric(X, Y, Z, 0.3, false, KE); 
+	Hex8Isoparametric(X, Y, Z, nu, false, KE); 
 
 	// Set the RHS and Dirichlet vector
 	VecSet(N,1.0);
