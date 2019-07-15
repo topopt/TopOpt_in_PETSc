@@ -98,7 +98,7 @@ int main(int argc, char *argv[]){
 
 		// Print to screen
 		PetscPrintf(PETSC_COMM_WORLD,"It.: %i, True fx: %f, Scaled fx: %f, gx[0]: %f, ch.: %f, mnd.: %f, time: %f\n",
-				itr,opt->fscale*opt->fx,opt->fx,opt->gx[0], ch,mnd, t2-t1);
+				itr,opt->fx/opt->fscale,opt->fx,opt->gx[0], ch,mnd, t2-t1);
 
 		// Write field data: first 10 iterations and then every 20th
 		if (itr<11 || itr%20==0 || changeBeta){
