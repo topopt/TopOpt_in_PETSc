@@ -39,6 +39,7 @@ class TopOpt {
 public:
 
 	// Constructor/Destructor  
+	TopOpt(PetscInt nconstraint);
 	TopOpt();
 	~TopOpt();
 
@@ -100,6 +101,7 @@ public:
 
 private:
 	// Allocate and set default values
+	void Init();
 	PetscErrorCode SetUp();
 
 	PetscErrorCode SetUpMESH();

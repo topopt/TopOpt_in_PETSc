@@ -13,23 +13,37 @@
 */
 
 
+TopOpt::TopOpt(PetscInt nconstraints){
+
+        m = nconstraints;
+        Init();
+
+}
+
 TopOpt::TopOpt(){
-      
-  x=NULL;
-  xPhys=NULL;
-  dfdx=NULL;
-  dgdx=NULL;
-  gx=NULL;
-  da_nodes=NULL;
-  da_elem=NULL;
-  
-  xo1=NULL;
-  xo2=NULL;
-  U=NULL;
-  L=NULL;
-  
-  SetUp();
-  
+
+        m = 1;
+        Init();
+}
+
+void TopOpt::Init(){ // Dummy constructor
+
+        x=NULL;
+        xPhys=NULL;
+        dfdx=NULL;
+        dgdx=NULL;
+        gx=NULL;
+        da_nodes=NULL;
+        da_elem=NULL;
+
+        xo1=NULL;
+        xo2=NULL;
+        U=NULL;
+        L=NULL;
+
+        SetUp();
+
+
 }
 
 TopOpt::~TopOpt(){
@@ -85,7 +99,6 @@ PetscErrorCode TopOpt::SetUp(){
         Emin = 1.0e-9;
         Emax = 1.0;
         filter = 1; // 0=sens,1=dens,2=PDE - other val == no filtering
-        m = 1; // Constraints
         Xmin = 0.0;
         Xmax = 1.0;
         movlim = 0.2;
