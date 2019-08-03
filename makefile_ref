@@ -1,6 +1,5 @@
 PETSC_DIR=/home/naage/install/petsc-3.11.2/
 PETSC_ARCH=linux-gnu-dbg32
-#PETSC_DIR=/appl/petsc/3.11.2-mai-2019-eigen3/${CPUTYPEV}
 CFLAGS = -I.
 FFLAGS=
 CPPFLAGS=-I.
@@ -24,5 +23,5 @@ topopt: main.o TopOpt.o LinearElasticity.o MMA.o Filter.o PDEFilter.o MPIIO.o ch
 	rm -rf *.o
 
 myclean:
-	rm -rf topopt output* binary* log* makevtu.pyc Restart* 
+	rm -rf topopt *.o output* binary* log* makevtu.pyc Restart* 
 
