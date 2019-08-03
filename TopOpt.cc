@@ -105,7 +105,7 @@ PetscErrorCode TopOpt::SetUp(){
 	restart = PETSC_TRUE;
         
         // Projection filter 
-        projectionFilter = PETSC_TRUE; //FALSE;
+        projectionFilter = PETSC_FALSE;
         beta = 0.1;
         betaFinal = 48;
         eta = 0.0;
@@ -285,6 +285,7 @@ PetscErrorCode TopOpt::SetUpOPT(){
 	// Optimization paramteres
 	PetscOptionsGetReal(NULL,NULL,"-Emin",&Emin,&flg);
 	PetscOptionsGetReal(NULL,NULL,"-Emax",&Emax,&flg);
+	PetscOptionsGetReal(NULL,NULL,"-nu",&nu,&flg);
 	PetscOptionsGetReal(NULL,NULL,"-volfrac",&volfrac,&flg);
    PetscOptionsGetReal(NULL,NULL,"-penal",&penal,&flg);
 	PetscOptionsGetReal(NULL,NULL,"-rmin",&rmin,&flg);
@@ -309,6 +310,7 @@ PetscErrorCode TopOpt::SetUpOPT(){
         PetscPrintf(PETSC_COMM_WORLD,"# -volfrac: %f\n",volfrac);
         PetscPrintf(PETSC_COMM_WORLD,"# -penal: %f\n",penal);
 	PetscPrintf(PETSC_COMM_WORLD,"# -Emin/-Emax: %e - %e \n",Emin,Emax);
+	PetscPrintf(PETSC_COMM_WORLD,"# -nu: %f \n",nu);
 	PetscPrintf(PETSC_COMM_WORLD,"# -maxItr: %i\n",maxItr);
 	PetscPrintf(PETSC_COMM_WORLD,"# -movlim: %f\n",movlim);
        	PetscPrintf(PETSC_COMM_WORLD,"##############################################################\n");

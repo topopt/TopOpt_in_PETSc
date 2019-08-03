@@ -24,7 +24,7 @@ LinearElasticity::LinearElasticity(DM da_nodes){
         nlvls = 4;
         PetscBool flg;
 	PetscOptionsGetInt(NULL,NULL,"-nlvls",&nlvls,&flg);
-        
+       	PetscOptionsGetReal(NULL,NULL,"-nu",&nu,&flg); 
         
 	// Setup sitffness matrix, load vector and bcs (Dirichlet) for the design problem
 	SetUpLoadAndBC(da_nodes);
