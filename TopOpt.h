@@ -3,7 +3,7 @@
 
 #include <petsc.h>
 //#include <petsc-private/dmdaimpl.h>
-#include <MMA.h>
+#include "MMA.h"
 #include <fstream>
 #include <iostream>
 #include <math.h>

@@ -3,7 +3,7 @@
 
 #include <petsc.h>
 //#include <petsc-private/dmdaimpl.h>
-#include <PDEFilter.h>
+#include "PDEFilter.h"
 #include <iostream>
 #include <math.h>
 #include <petsc/private/dmdaimpl.h>

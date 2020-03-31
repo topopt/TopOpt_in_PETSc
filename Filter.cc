@@ -1,4 +1,4 @@
-#include <Filter.h>
+#include "Filter.h"
 
 /* -----------------------------------------------------------------------------
 Authors: Niels Aage, Erik Andreassen, Boyan Lazarov, August 2013
