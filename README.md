@@ -35,7 +35,9 @@ Visualize using ParaView (version 5.7 or earlier)
 The expected result of the base code is the (but on a coarse mesh!) cantilever beam from:
 Aage, N., Andreassen, E., & Lazarov, B. S. (2015). Topology optimization using PETSc: An easy-to-use, fully parallel, open source topology optimization framework. Structural and Multidisciplinary Optimization, 51(3), 565–572. https://doi.org/10.1007/s00158-014-1157-0
 
+===============
 Extensions: 
+===============
 An extension of the code including manufacturing filters/constraints can be found here:
 https://github.com/edofersan/MaximumSize_on_TopOpt_in_PETSc
 
