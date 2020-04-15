@@ -12,7 +12,7 @@ June, 2019, Niels Aage
 To clone repository:
 >> git clone https://github.com/topopt/TopOpt_in_PETSc.git
 
-NOTE: The code requires PETSc version 3.7.0 or newer ! Also note that the code is not tested against the development branch on git.
+NOTE: The code requires PETSc version 3.11.0 or newer ! Also note that the code is not tested against the development branch on git.
 
 This code has been tested on:
 - Linux systems including: Ubuntu 18.04, Red hat enterprise linux 8
@@ -32,10 +32,12 @@ Postprocess results using Python 2.6: "bin2vtu #" where # refers to the iteratio
 
 Visualize using ParaView (version 5.7 or earlier)
 
-The expected result of the base code is the cantilever beam from:
+The expected result of the base code is the (but on a coarse mesh!) cantilever beam from:
 Aage, N., Andreassen, E., & Lazarov, B. S. (2015). Topology optimization using PETSc: An easy-to-use, fully parallel, open source topology optimization framework. Structural and Multidisciplinary Optimization, 51(3), 565–572. https://doi.org/10.1007/s00158-014-1157-0
 
-
+Extensions: 
+An extension of the code including manufacturing filters/constraints can be found here:
+https://github.com/edofersan/MaximumSize_on_TopOpt_in_PETSc
 
 
 
