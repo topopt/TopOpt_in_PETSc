@@ -5,7 +5,15 @@
 
 /* -----------------------------------------------------------------------------
 Authors: Niels Aage
- Copyright (C) 2013-2020,
+ Copyright (C) 2013-2024,
+
+The implementation and the version of the MMA subproblem and subproblem 
+solver follows the method presented in which is tailored for good parallel
+performance:
+Aage, N., & Lazarov, B. S. (2013). Parallel framework for topology optimization 
+using the method of moving asymptotes. Structural and Multidisciplinary
+Optimization, 47(4), 493–505. https://doi.org/10.1007/s00158-012-0869-2
+ 
 This MMA implementation is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
 License as published by the Free Software Foundation; either
