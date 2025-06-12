@@ -28,7 +28,7 @@ Normal compilation time of framework, e.g. 4s: "make topopt -j"
 
 Run the base example by typing e.g.: "mpirun -np 4 ./topopt"
 
-Postprocess results using Python 2.6: "bin2vtu #" where # refers to the iteration number
+Postprocess results using Python 3: "bin2vtu_v3 #" where # refers to the iteration number
 
 Visualize using ParaView (version 5.7 or earlier)
 
