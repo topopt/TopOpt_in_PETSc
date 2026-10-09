@@ -853,17 +853,12 @@ PetscErrorCode MMA::DualHess(Vec x) {
             }
         }
     }
-    PetscScalar HessTrace = 0.0;
+
+    // Pos def check: shift each diagonal entry by 1e-4 of itself (at least 1e-7)
     for (PetscInt i = 0; i < m; i++) {
-        HessTrace += Hess[i * m + i];
+        Hess[i * m + i] += Min(-1.0e-7, 1.0e-4 * Hess[i * m + i]);
     }
-    PetscScalar HessCorr = 1e-4 * HessTrace / m;
-    if (-1.0 * HessCorr < 1.0e-7) {
-        HessCorr = -1.0e-7;
-    }
-    for (PetscInt i = 0; i < m; i++) {
-        Hess[i * m + i] += HessCorr;
-    }
+ 
     VecRestoreArray(x, &xv);
     VecRestoreArrays(pij, m, &pijv);
     VecRestoreArrays(qij, m, &qijv);
